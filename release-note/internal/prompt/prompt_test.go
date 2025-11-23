@@ -38,6 +38,7 @@ func TestBuildUserPromptIncludesKeySections(t *testing.T) {
 		"Generate release notes for changes between v1.0.0 and HEAD",
 		"Please summarize behavior changes.",
 		"New Feature, Performance Improvement, Bug Fix, Internal Changes",
+		"(PR#<number>, <author>)",
 		"PR #42: Add payment processing",
 		"payments/service.go",
 		"Implement payment flow",

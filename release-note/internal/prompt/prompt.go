@@ -15,8 +15,9 @@ func BuildUserPrompt(cfg config.PromptConfig, note model.ReleaseNote) string {
 	fmt.Fprintf(&b, "Generate release notes for changes between %s and %s.\n", note.FromRef, note.ToRef)
 	fmt.Fprintf(&b, "%s\n\n", cfg.UserInstructions)
 	b.WriteString("Summaries should be grouped by New Feature, Performance Improvement, Bug Fix, Internal Changes.\n")
-	b.WriteString("Each bullet must end with the suffix format: (PR#<number> <link>, Author: <name>).\n")
-	b.WriteString("PRs missing metadata should be noted as unknown.\n\n")
+	b.WriteString("Each bullet MUST end with the suffix format: (PR#<number>, <author>).\n")
+	b.WriteString("Use the PR author when available; otherwise use the commit author. If the PR number is unknown, use PR#unknown.\n")
+	b.WriteString("Do NOT include links in the bullets and do NOT add any PR list/table/section.\n\n")
 
 	b.WriteString("Commits and PR context:\n")
 	for _, c := range note.Commits {

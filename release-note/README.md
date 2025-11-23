@@ -19,14 +19,21 @@ go run ./cmd/release-note \
 Or by commit range:
 ```bash
 go run ./cmd/release-note \
-  --from-commit abc1234 \
-  --to-commit HEAD
+--from-commit abc1234 \
+--to-commit HEAD
 ```
 
 Flags:
 - `--config` path to the prompt/config JSON (defaults to `prompt.json`)
 - `--repo` path to the git repo (defaults to `.`)
 - `--output` target Markdown file
+
+Installation without a config file:
+```bash
+go install ./cmd/release-note
+# built-in prompt/config defaults will be used
+release-note --from-tag v1.2.0 --to-tag v1.2.3
+```
 
 ### How it works
 1) Collects commits in the range via `git log`, fetching file lists per commit.  
@@ -40,8 +47,10 @@ Edit `prompt.json`:
 - `system_prompt`: high-level tone/role
 - `user_instructions`: detailed guidance for behavior-first notes
 - `temperature` / `max_tokens`: generation controls
+- `author_filter`: optional array of GitHub logins to keep only commits authored by those people (PR author preferred, falls back to git author)
+
+If `prompt.json` is absent, the tool falls back to safe defaults baked into the binary.
 
 ### Output expectations
 - Release notes are categorized into: New Feature, Performance Improvement, Bug Fix, Internal Changes.
-- Each item ends with `(PR#<number> <link>, Author: <name>)`.
-- A full PR list (number, link, original title, changed files) is appended.
+- Each item ends with `(PR#<number>, <name>)` (no links in bullets).
