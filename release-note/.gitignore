@@ -1,3 +1,6 @@
+# Build artifacts
+release-note
+
 # Local Go cache (override used during build)
 .gocache/
 
