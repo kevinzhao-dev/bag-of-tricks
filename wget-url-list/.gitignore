@@ -1,0 +1,8 @@
+# Build artifacts
+/url-downloader
+
+# Go module files
+go.sum
+
+# OS clutter
+.DS_Store
