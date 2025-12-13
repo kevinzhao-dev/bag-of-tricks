@@ -180,8 +180,10 @@ func downloadAll(urls []string, destDir string, workers int) []downloadResult {
 		return results
 	}
 
-	jobs := make(chan string)
-	results := make(chan downloadResult)
+	// Buffer channels so fast workers don't block when the main goroutine
+	// hasn't started reading from results yet.
+	jobs := make(chan string, len(urls))
+	results := make(chan downloadResult, len(urls))
 	var wg sync.WaitGroup
 
 	for i := 0; i < workers; i++ {
