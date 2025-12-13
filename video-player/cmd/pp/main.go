@@ -92,11 +92,19 @@ func main() {
 	}
 	defer cleanupInputConf()
 
+	browserScriptPath, cleanupBrowserScript, err := pp.WriteTempBrowserScript()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to write browser script: %v\n", err)
+		os.Exit(1)
+	}
+	defer cleanupBrowserScript()
+
 	player, err := mpv.Start(mpvPath, mpv.StartOptions{
 		SocketPath:    socketPath,
 		PlaylistPath:  playlistPath,
 		PlaylistStart: startIndex,
 		InputConfPath: inputConfPath,
+		ScriptPaths:   []string{browserScriptPath},
 		KeepOpen:      true,
 	})
 	if err != nil {

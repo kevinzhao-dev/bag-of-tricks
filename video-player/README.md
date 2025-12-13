@@ -29,6 +29,7 @@ env GOCACHE="$PWD/.gocache" GOPATH="$PWD/.gopath" go build -o pp ./cmd/pp
 - `s` / `e`: start / end(-5s)
 - `m`: mute
 - `[` / `]`: speed `- / +` 0.1x (clamped to 0.1x–3.0x)
+- `b`: browse playlist (OSD)
 - `:`: command mode
 - `q` / `Esc`: quit
 
@@ -49,4 +50,3 @@ Press `:` then type:
 By default, `pp` stores per-file playback positions in `~/.pp_timestamps_go.json`.
 
 - Disable with `--no-resume`
-

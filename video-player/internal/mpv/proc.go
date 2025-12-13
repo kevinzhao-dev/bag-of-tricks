@@ -18,6 +18,7 @@ type StartOptions struct {
 	PlaylistPath  string
 	PlaylistStart int
 	InputConfPath string
+	ScriptPaths   []string
 	KeepOpen      bool
 }
 
@@ -37,6 +38,13 @@ func Start(mpvPath string, opts StartOptions) (*Process, error) {
 
 	if opts.InputConfPath != "" {
 		args = append(args, "--input-conf="+opts.InputConfPath)
+	}
+
+	for _, s := range opts.ScriptPaths {
+		if s == "" {
+			continue
+		}
+		args = append(args, "--script="+s)
 	}
 
 	if opts.PlaylistPath != "" {
