@@ -82,6 +82,7 @@ Press `:` then type:
 
 ## Resume timestamps
 
-By default, `pp` stores per-file playback positions in `~/.pp_timestamps_go.json`.
+By default, resume positions are kept only for this session (switching back/forth resumes correctly, but restarting `pp` starts fresh).
 
-- Disable with `--no-resume`
+- Disable entirely with `--no-resume`
+- Persist across runs with `--persist-resume` (writes `~/.pp_timestamps_go.json`)

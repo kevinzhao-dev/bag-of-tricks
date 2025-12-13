@@ -7,19 +7,21 @@ import (
 )
 
 type TimestampStore struct {
-	path string
+	path string // empty => in-memory only (no persistence)
 	m    map[string]float64
 }
 
-func NewTimestampStore() *TimestampStore {
-	home, _ := os.UserHomeDir()
+func NewTimestampStore(path string) *TimestampStore {
 	return &TimestampStore{
-		path: filepath.Join(home, ".pp_timestamps_go.json"),
+		path: path,
 		m:    map[string]float64{},
 	}
 }
 
 func (t *TimestampStore) Load() error {
+	if t == nil || t.path == "" {
+		return nil
+	}
 	b, err := os.ReadFile(t.path)
 	if err != nil {
 		return nil
@@ -32,7 +34,7 @@ func (t *TimestampStore) Load() error {
 }
 
 func (t *TimestampStore) Save() error {
-	if t == nil {
+	if t == nil || t.path == "" {
 		return nil
 	}
 	tmp := t.path + ".tmp"
@@ -62,4 +64,9 @@ func (t *TimestampStore) Set(path string, sec float64) {
 		t.m = map[string]float64{}
 	}
 	t.m[path] = sec
+}
+
+func DefaultTimestampPath() string {
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, ".pp_timestamps_go.json")
 }

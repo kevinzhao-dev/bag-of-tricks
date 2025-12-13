@@ -20,7 +20,8 @@ func main() {
 		seekShort   = flag.Int("seek-short", 10, "short seek seconds")
 		seekLong    = flag.Int("seek-long", 60, "long seek seconds")
 		continuous  = flag.Bool("continuous", false, "auto-advance to next video on end")
-		noResume    = flag.Bool("no-resume", false, "do not restore/save per-file timestamps")
+		noResume    = flag.Bool("no-resume", false, "disable resume (even within this session)")
+		persist     = flag.Bool("persist-resume", false, "persist resume timestamps across runs (writes to ~/.pp_timestamps_go.json)")
 		mpvPathFlag = flag.String("mpv", "mpv", "mpv executable path")
 	)
 	flag.Usage = func() {
@@ -56,9 +57,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	ts := pp.NewTimestampStore()
-	if !*noResume {
-		_ = ts.Load()
+	var ts *pp.TimestampStore
+	if *persist {
+		ts = pp.NewTimestampStore(pp.DefaultTimestampPath())
+		if !*noResume {
+			_ = ts.Load()
+		}
+	} else {
+		ts = pp.NewTimestampStore("")
 	}
 
 	restoreTTY, err := tty.MakeRaw()
