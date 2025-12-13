@@ -31,6 +31,7 @@ env GOCACHE="$PWD/.gocache" GOPATH="$PWD/.gopath" go build -o pp ./cmd/pp
 - `[` / `]`: speed `- / +` 0.1x (clamped to 0.1x–3.0x)
 - `f`: fullscreen
 - `b`: browse playlist (OSD)
+- `Backspace/Delete`: move current file to Trash (press twice to confirm)
 - `:`: command mode
 - `q` / `Esc`: quit
 

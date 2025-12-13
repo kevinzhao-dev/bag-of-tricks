@@ -43,6 +43,9 @@ ENTER playlist-next
 
 b script-message pp_browser_toggle
 
+BS  script-message pp_trash_current
+DEL script-message pp_trash_current
+
 s seek 0 absolute
 e seek 100 absolute-percent; seek -5 relative
 
@@ -70,10 +73,12 @@ func WriteTempBrowserScript() (path string, cleanup func(), err error) {
 	// Minimal OSD playlist browser: toggle with `b`, navigate with arrows, Enter to play.
 	script := strings.TrimSpace(`
 local mp = require 'mp'
+local utils = require 'mp.utils'
 
 local active = false
 local sel = 0
 local win = 13
+local pending_trash_until = 0
 
 local function basename(p)
   if p == nil then return "" end
@@ -154,6 +159,63 @@ local function toggle()
 end
 
 mp.register_script_message("pp_browser_toggle", toggle)
+
+local function is_probably_local_file(p)
+  if p == nil or p == "" then return false end
+  if string.find(p, "://") ~= nil then return false end
+  return true
+end
+
+local function applescript_escape(s)
+  s = string.gsub(s, "\\", "\\\\")
+  s = string.gsub(s, "\"", "\\\"")
+  return s
+end
+
+local function trash_current()
+  local now = mp.get_time()
+  if now < pending_trash_until then
+    pending_trash_until = 0
+  else
+    pending_trash_until = now + 2.0
+    mp.osd_message("Trash file? Press Backspace/Delete again to confirm", 2.0)
+    return
+  end
+
+  local p = mp.get_property("path")
+  if not is_probably_local_file(p) then
+    mp.osd_message("Trash: not a local file", 1.5)
+    return
+  end
+
+  local pos = mp.get_property_number("playlist-pos", 0)
+  local count = mp.get_property_number("playlist-count", 0)
+
+  local script = 'tell application "Finder" to delete POSIX file "' .. applescript_escape(p) .. '"'
+  local res = utils.subprocess({ args = { "osascript", "-e", script } })
+  if res.error ~= nil then
+    mp.osd_message("Trash failed: " .. tostring(res.error), 2.0)
+    return
+  end
+  if res.status ~= 0 then
+    mp.osd_message("Trash failed", 2.0)
+    return
+  end
+
+  mp.commandv("playlist-remove", pos)
+  mp.osd_message("Moved to Trash: " .. basename(p), 1.5)
+
+  local newCount = count - 1
+  if newCount <= 0 then
+    mp.commandv("quit")
+    return
+  end
+  if pos >= newCount then pos = newCount - 1 end
+  if pos < 0 then pos = 0 end
+  mp.commandv("playlist-play-index", pos)
+end
+
+mp.register_script_message("pp_trash_current", trash_current)
 `)
 	script += "\n"
 
