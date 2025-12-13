@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"video-player/internal/mpv"
@@ -33,6 +34,11 @@ type App struct {
 	helpShown bool
 
 	pauseAfterLoad bool
+
+	lastMu         sync.Mutex
+	lastSamplePath string
+	lastSamplePos  float64
+	lastSavedAt    time.Time
 }
 
 func (a *App) Run() error {
@@ -178,7 +184,7 @@ func (a *App) Next(ctx context.Context) error {
 	if !a.Continuous {
 		a.pauseAfterLoad = false
 	}
-	return a.RestorePosition(context.Background())
+	return nil
 }
 
 func (a *App) Prev(ctx context.Context) error {
@@ -189,7 +195,7 @@ func (a *App) Prev(ctx context.Context) error {
 	if !a.Continuous {
 		a.pauseAfterLoad = false
 	}
-	return a.RestorePosition(context.Background())
+	return nil
 }
 
 func (a *App) Load(ctx context.Context, index int) error {
@@ -205,7 +211,7 @@ func (a *App) Load(ctx context.Context, index int) error {
 	if !a.Continuous {
 		a.pauseAfterLoad = false
 	}
-	return a.RestorePosition(context.Background())
+	return nil
 }
 
 func (a *App) RestorePosition(ctx context.Context) error {
@@ -248,6 +254,9 @@ func (a *App) eventLoop() {
 			var name string
 			_ = json.Unmarshal(ev.Raw["name"], &name)
 			if name == "playlist-pos" {
+				// Switching can happen from mpv window keybindings; flush last sampled position
+				// so toggling back/forth resumes instead of starting from 0.
+				_ = a.flushLastSample()
 				var n int
 				_ = json.Unmarshal(ev.Raw["data"], &n)
 				if n >= 0 {
@@ -262,6 +271,7 @@ func (a *App) eventLoop() {
 			}
 		case "file-loaded":
 			a.syncIndex()
+			_ = a.RestorePosition(context.Background())
 			if a.pauseAfterLoad {
 				_ = a.MPV.Command(context.Background(), "set_property", "pause", true)
 				a.osd("Paused (space to play)")
@@ -403,11 +413,52 @@ func (a *App) periodicSaveLoop() {
 	if !a.ResumeState || a.Timestamps == nil {
 		return
 	}
-	t := time.NewTicker(5 * time.Second)
+	t := time.NewTicker(1 * time.Second)
 	defer t.Stop()
 	for range t.C {
-		_ = a.persistPosition()
+		a.sampleAndMaybeSave()
 	}
+}
+
+func (a *App) sampleAndMaybeSave() {
+	path, err := a.MPV.GetString(withTimeout(200*time.Millisecond), "path")
+	if err != nil || path == "" {
+		return
+	}
+	pos, err := a.MPV.GetFloat(withTimeout(200*time.Millisecond), "time-pos")
+	if err != nil || pos < 0 {
+		return
+	}
+
+	a.lastMu.Lock()
+	a.lastSamplePath = path
+	a.lastSamplePos = pos
+	shouldSave := time.Since(a.lastSavedAt) >= 3*time.Second
+	if shouldSave {
+		a.lastSavedAt = time.Now()
+	}
+	a.lastMu.Unlock()
+
+	// Keep in-memory store fresh; persist to disk every few seconds.
+	a.Timestamps.Set(path, pos)
+	if shouldSave {
+		_ = a.Timestamps.Save()
+	}
+}
+
+func (a *App) flushLastSample() error {
+	if !a.ResumeState || a.Timestamps == nil {
+		return nil
+	}
+	a.lastMu.Lock()
+	path := a.lastSamplePath
+	pos := a.lastSamplePos
+	a.lastMu.Unlock()
+	if path == "" || pos < 0 {
+		return nil
+	}
+	a.Timestamps.Set(path, pos)
+	return a.Timestamps.Save()
 }
 
 func splitCmd(s string) []string {
