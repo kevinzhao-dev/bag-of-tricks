@@ -20,6 +20,7 @@ func main() {
 		seekShort   = flag.Int("seek-short", 10, "short seek seconds")
 		seekLong    = flag.Int("seek-long", 60, "long seek seconds")
 		continuous  = flag.Bool("continuous", false, "auto-advance to next video on end")
+		autoplay    = flag.Bool("autoplay", false, "auto-play on start (forces pause=false after load)")
 		noResume    = flag.Bool("no-resume", false, "disable resume (even within this session)")
 		persist     = flag.Bool("persist-resume", false, "persist resume timestamps across runs (writes to ~/.pp_timestamps_go.json)")
 		mpvPathFlag = flag.String("mpv", "mpv", "mpv executable path")
@@ -139,11 +140,15 @@ func main() {
 		SeekShortS:  float64(*seekShort),
 		SeekLongS:   float64(*seekLong),
 		Continuous:  *continuous,
+		AutoPlay:    *autoplay,
 		Timestamps:  ts,
 		ResumeState: !*noResume,
 	}
 
 	_ = app.RestorePosition(context.Background())
+	if *autoplay {
+		_ = client.Command(context.Background(), "set_property", "pause", false)
+	}
 	app.ShowHelpOnce()
 
 	if err := app.Run(); err != nil {

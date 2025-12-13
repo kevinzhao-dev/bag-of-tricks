@@ -27,6 +27,7 @@ type App struct {
 	SeekShortS float64
 	SeekLongS  float64
 	Continuous bool
+	AutoPlay   bool
 
 	Timestamps  *TimestampStore
 	ResumeState bool
@@ -265,14 +266,17 @@ func (a *App) eventLoop() {
 			}
 		case "end-file":
 			_ = a.persistPosition()
-			if !a.Continuous {
+			if !a.Continuous && !a.AutoPlay {
 				// mpv will move to the next file in the playlist; pause once it loads.
 				a.pauseAfterLoad = true
 			}
 		case "file-loaded":
 			a.syncIndex()
 			_ = a.RestorePosition(context.Background())
-			if a.pauseAfterLoad {
+			if a.AutoPlay {
+				_ = a.MPV.Command(context.Background(), "set_property", "pause", false)
+			}
+			if a.pauseAfterLoad && !a.AutoPlay {
 				_ = a.MPV.Command(context.Background(), "set_property", "pause", true)
 				a.osd("Paused (space to play)")
 				a.pauseAfterLoad = false

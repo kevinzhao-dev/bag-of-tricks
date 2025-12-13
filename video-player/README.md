@@ -14,6 +14,14 @@ make build
 ./bin/pp path/to/a.mp4  # start at a specific file (playlist is its directory)
 ```
 
+Autoplay on start:
+
+```bash
+./bin/pp --autoplay .
+```
+
+With `--autoplay`, every video in the playlist auto-plays when it loads.
+
 If your environment restricts Go's default cache location, either use the `Makefile` (it defaults to a workspace cache) or run:
 
 ```bash
