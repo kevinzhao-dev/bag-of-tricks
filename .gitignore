@@ -1,0 +1,60 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors / IDEs
+.vscode/
+.idea/
+*.swp
+*~
+
+# Go
+**/.gocache/
+**/bin/
+**/*.test
+**/*.out
+**/*.prof
+**/coverage.out
+
+# C / C++
+**/*.o
+**/*.a
+**/*.so
+**/*.dylib
+**/*.exe
+**/*.obj
+**/*.dll
+**/*.lib
+**/*.pdb
+**/*.ilk
+**/*.dSYM/
+**/build/
+**/cmake-build-*/
+**/CMakeFiles/
+**/CMakeCache.txt
+**/cmake_install.cmake
+**/Makefile
+**/*.ninja
+**/compile_commands.json
+
+# Python
+**/__pycache__/
+**/*.py[cod]
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+**/.tox/
+**/.coverage
+**/coverage.xml
+**/htmlcov/
+**/dist/
+**/*.egg-info/
+**/.venv/
+**/venv/
+
+# Logs
+**/*.log
+
+# Repo-specific build outputs
+video-player/pp
+wget-url-list/url-downloader
