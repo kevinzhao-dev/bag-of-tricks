@@ -50,6 +50,8 @@ m cycle mute
 [ add speed -0.1
 ] add speed 0.1
 
+f cycle fullscreen
+
 q quit
 ESC quit
 `)+"\n", opts.SeekShortS, opts.SeekShortS, opts.SeekLongS, opts.SeekLongS)
