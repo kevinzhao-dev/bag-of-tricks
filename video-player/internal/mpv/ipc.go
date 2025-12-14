@@ -22,6 +22,8 @@ type Client struct {
 	pending map[int]chan response
 	events  chan Event
 	closed  chan struct{}
+	closeOnce  sync.Once
+	eventsOnce sync.Once
 }
 
 type response struct {
@@ -75,18 +77,29 @@ func Dial(ctx context.Context, socketPath string) (*Client, error) {
 }
 
 func (c *Client) Close() error {
-	select {
-	case <-c.closed:
+	if c == nil {
 		return nil
-	default:
 	}
-	close(c.closed)
-	return c.conn.Close()
+	var err error
+	c.closeOnce.Do(func() {
+		close(c.closed)
+
+		c.mu.Lock()
+		c.pending = map[int]chan response{}
+		c.mu.Unlock()
+
+		if c.conn != nil {
+			err = c.conn.Close()
+		}
+	})
+	return err
 }
 
 func (c *Client) Events() <-chan Event { return c.events }
+func (c *Client) Done() <-chan struct{} { return c.closed }
 
 func (c *Client) readLoop() {
+	defer c.eventsOnce.Do(func() { close(c.events) })
 	for {
 		line, err := c.br.ReadBytes('\n')
 		if err != nil {

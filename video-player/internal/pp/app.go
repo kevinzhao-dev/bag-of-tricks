@@ -54,6 +54,17 @@ func (a *App) Run() error {
 	in := bufio.NewReader(os.Stdin)
 
 	for {
+		select {
+		case <-a.MPV.Done():
+			return nil
+		default:
+		}
+
+		if !tty.InputReady(in) {
+			time.Sleep(10 * time.Millisecond)
+			continue
+		}
+
 		key, err := tty.ReadKey(in)
 		if err != nil {
 			return err
@@ -80,27 +91,31 @@ func (a *App) Run() error {
 			_ = a.MPV.Command(context.Background(), "seek", -a.SeekLongS, "relative")
 			a.osd(fmt.Sprintf("◀ %.0fs", a.SeekLongS))
 		case tty.KeyRune:
-			if err := a.handleRune(key.Rune, in); err != nil {
+			quit, err := a.handleRune(key.Rune, in)
+			if err != nil {
 				return err
+			}
+			if quit {
+				return nil
 			}
 		}
 	}
 }
 
-func (a *App) handleRune(r rune, in *bufio.Reader) error {
+func (a *App) handleRune(r rune, in *bufio.Reader) (quit bool, err error) {
 	switch r {
 	case 'q':
 		_ = a.persistPosition()
 		_ = a.MPV.Command(context.Background(), "quit")
-		return nil
+		return true, nil
 	case 'j':
-		return a.Prev(context.Background())
+		return false, a.Prev(context.Background())
 	case 'k', '\r', '\n':
-		return a.Next(context.Background())
+		return false, a.Next(context.Background())
 	case 's':
 		_ = a.MPV.Command(context.Background(), "seek", 0, "absolute")
 		a.osd("Start")
-		return nil
+		return false, nil
 	case 'e':
 		dur, err := a.MPV.GetFloat(withTimeout(400*time.Millisecond), "duration")
 		if err == nil && dur > 0 {
@@ -111,22 +126,22 @@ func (a *App) handleRune(r rune, in *bufio.Reader) error {
 			_ = a.MPV.Command(context.Background(), "seek", target, "absolute")
 			a.osd("End (-5s)")
 		}
-		return nil
+		return false, nil
 	case 'm':
 		_ = a.MPV.Command(context.Background(), "cycle", "mute")
 		a.osd("Toggle mute")
-		return nil
+		return false, nil
 	case '[':
-		return a.bumpSpeed(-0.1)
+		return false, a.bumpSpeed(-0.1)
 	case ']':
-		return a.bumpSpeed(0.1)
+		return false, a.bumpSpeed(0.1)
 	case 'h', '?':
 		a.ShowHelpOnce()
-		return nil
+		return false, nil
 	case ':':
 		return a.commandMode(in)
 	default:
-		return nil
+		return false, nil
 	}
 }
 
@@ -285,18 +300,18 @@ func (a *App) eventLoop() {
 	}
 }
 
-func (a *App) commandMode(in *bufio.Reader) error {
+func (a *App) commandMode(in *bufio.Reader) (quit bool, err error) {
 	line, ok, err := tty.ReadLine(in, ":")
 	if err != nil {
-		return err
+		return false, err
 	}
 	if !ok {
 		a.osd("Canceled")
-		return nil
+		return false, nil
 	}
 	line = strings.TrimSpace(line)
 	if line == "" {
-		return nil
+		return false, nil
 	}
 
 	fields := splitCmd(line)
@@ -307,58 +322,58 @@ func (a *App) commandMode(in *bufio.Reader) error {
 	case "h", "help", "?":
 		a.ShowHelpOnce()
 		a.osd(":ls, :open, :seek, :jump, :n, :p, :q")
-		return nil
+		return false, nil
 	case "q", "quit", "exit":
 		_ = a.persistPosition()
 		_ = a.MPV.Command(context.Background(), "quit")
-		return nil
+		return true, nil
 	case "n", "next":
-		return a.Next(context.Background())
+		return false, a.Next(context.Background())
 	case "p", "prev":
-		return a.Prev(context.Background())
+		return false, a.Prev(context.Background())
 	case "ls", "list":
 		a.printPlaylist()
 		a.osd(fmt.Sprintf("%d files", len(a.Playlist)))
-		return nil
+		return false, nil
 	case "open", "o":
 		if len(args) == 0 {
 			a.osd("open: need index or substring")
-			return nil
+			return false, nil
 		}
 		target := strings.Join(args, " ")
 		if i, err := strconv.Atoi(target); err == nil {
-			return a.Load(context.Background(), i-1)
+			return false, a.Load(context.Background(), i-1)
 		}
 		i := a.findBySubstring(target)
 		if i < 0 {
 			a.osd("not found")
-			return nil
+			return false, nil
 		}
-		return a.Load(context.Background(), i)
+		return false, a.Load(context.Background(), i)
 	case "seek":
 		if len(args) != 1 {
 			a.osd("seek: usage seek +10 | -10")
-			return nil
+			return false, nil
 		}
 		sec, err := strconv.ParseFloat(args[0], 64)
 		if err != nil {
 			a.osd("seek: invalid seconds")
-			return nil
+			return false, nil
 		}
 		_ = a.MPV.Command(context.Background(), "seek", sec, "relative")
 		a.osd(fmt.Sprintf("Seek %.0fs", sec))
-		return nil
+		return false, nil
 	case "jump":
 		if len(args) != 1 {
 			a.osd("jump: usage jump 50% | 120")
-			return nil
+			return false, nil
 		}
 		if strings.HasSuffix(args[0], "%") {
 			pctStr := strings.TrimSuffix(args[0], "%")
 			pct, err := strconv.ParseFloat(pctStr, 64)
 			if err != nil {
 				a.osd("jump: invalid percent")
-				return nil
+				return false, nil
 			}
 			if pct < 0 {
 				pct = 0
@@ -368,19 +383,19 @@ func (a *App) commandMode(in *bufio.Reader) error {
 			}
 			_ = a.MPV.Command(context.Background(), "seek", pct, "absolute-percent")
 			a.osd(fmt.Sprintf("Jump %.0f%%", pct))
-			return nil
+			return false, nil
 		}
 		sec, err := strconv.ParseFloat(args[0], 64)
 		if err != nil {
 			a.osd("jump: invalid seconds")
-			return nil
+			return false, nil
 		}
 		_ = a.MPV.Command(context.Background(), "seek", sec, "absolute")
 		a.osd(fmt.Sprintf("Jump %.0fs", sec))
-		return nil
+		return false, nil
 	default:
 		a.osd("unknown command (try :help)")
-		return nil
+		return false, nil
 	}
 }
 

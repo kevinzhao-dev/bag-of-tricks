@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 )
 
 type KeyKind int
@@ -60,7 +61,11 @@ func ReadKey(r *bufio.Reader) (Key, error) {
 
 	switch b {
 	case 0x1b: // ESC or escape sequence
-		// Peek quickly; if no more bytes, treat as quit.
+		// Distinguish bare ESC from escape sequences (e.g. arrow keys).
+		// bufio.Reader blocks on ReadByte, so only read more when input is available.
+		if !hasMoreInput(r) {
+			return Key{Kind: KeyQuit}, nil
+		}
 		next, err := r.ReadByte()
 		if err != nil {
 			return Key{Kind: KeyQuit}, nil
@@ -116,6 +121,34 @@ func ReadKey(r *bufio.Reader) (Key, error) {
 		}
 		return Key{Kind: KeyRune, Rune: rune(b)}, nil
 	}
+}
+
+func hasMoreInput(r *bufio.Reader) bool {
+	if r.Buffered() > 0 {
+		return true
+	}
+
+	// We only use ReadKey with stdin; check whether there are bytes ready so we don't
+	// block forever after a lone ESC press.
+	for i := 0; i < 3; i++ {
+		n, err := bytesAvailable(os.Stdin.Fd())
+		if err == nil && n > 0 {
+			return true
+		}
+		time.Sleep(4 * time.Millisecond)
+		if r.Buffered() > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func InputReady(r *bufio.Reader) bool {
+	if r.Buffered() > 0 {
+		return true
+	}
+	n, err := bytesAvailable(os.Stdin.Fd())
+	return err == nil && n > 0
 }
 
 func ReadLine(r *bufio.Reader, prompt string) (line string, ok bool, err error) {
