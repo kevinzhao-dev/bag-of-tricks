@@ -42,6 +42,7 @@ k script-message pp_next_wrap
 ENTER script-message pp_next_wrap
 
 b script-message pp_browser_toggle
+B script-message pp_browser_toggle
 
 BS  script-message pp_trash_current
 DEL script-message pp_trash_current
@@ -97,6 +98,53 @@ local function playlist()
   return pl
 end
 
+local function is_probably_local_file(p)
+  if p == nil or p == "" then return false end
+  if string.find(p, "://") ~= nil then return false end
+  return true
+end
+
+local size_cache = {}
+
+local function resolve_local_path(p)
+  if p == nil or p == "" then return "" end
+  local path = p
+  if string.sub(path, 1, 2) == "~/" then
+    local home = os.getenv("HOME")
+    if home ~= nil and home ~= "" then
+      path = home .. string.sub(path, 2)
+    end
+  end
+  if string.sub(path, 1, 1) ~= "/" then
+    local wd = mp.get_property("working-directory")
+    if wd ~= nil and wd ~= "" then
+      path = utils.join_path(wd, path)
+    end
+  end
+  return path
+end
+
+local function size_suffix_gb(p)
+  if p == nil or p == "" then return "" end
+  if size_cache[p] ~= nil then
+    if size_cache[p] == false then return "" end
+    return size_cache[p]
+  end
+  if not is_probably_local_file(p) then
+    size_cache[p] = false
+    return ""
+  end
+  local info = utils.file_info(resolve_local_path(p))
+  if info == nil or info.size == nil then
+    size_cache[p] = false
+    return ""
+  end
+  local gb = info.size / (1024 * 1024 * 1024)
+  local s = string.format("  %.2fGB", gb)
+  size_cache[p] = s
+  return s
+end
+
 local function redraw()
   local pl = playlist()
   local n = #pl
@@ -112,7 +160,7 @@ local function redraw()
 
   local pos = mp.get_property_number('playlist-pos', 0)
   local lines = {}
-  table.insert(lines, string.format("Playlist (%d/%d)  ↑↓ move  Enter play  Esc close", sel + 1, n))
+  table.insert(lines, string.format("Playlist (%d/%d)  ↑↓ move  Enter play  Esc close  (GB)", sel + 1, n))
   for i = start, finish do
     local p = pl[i + 1]
     local mark = "  "
@@ -121,7 +169,8 @@ local function redraw()
     if i == pos then now = "• " end
     local title = p.title
     if title == nil or title == "" then title = basename(p.filename) end
-    table.insert(lines, string.format("%s%s%3d  %s", mark, now, i + 1, title))
+    local size = size_suffix_gb(p.filename)
+    table.insert(lines, string.format("%s%s%3d  %s%s", mark, now, i + 1, title, size))
   end
 
   mp.osd_message(table.concat(lines, "\n"), 3600)
@@ -180,12 +229,6 @@ end
 
 mp.register_script_message("pp_next_wrap", next_wrap)
 mp.register_script_message("pp_prev_wrap", prev_wrap)
-
-local function is_probably_local_file(p)
-  if p == nil or p == "" then return false end
-  if string.find(p, "://") ~= nil then return false end
-  return true
-end
 
 local function applescript_escape(s)
   s = string.gsub(s, "\\", "\\\\")
