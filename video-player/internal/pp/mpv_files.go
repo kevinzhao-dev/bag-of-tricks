@@ -37,9 +37,9 @@ RIGHT seek +%.0f relative
 UP    seek +%.0f relative
 DOWN  seek -%.0f relative
 
-j playlist-prev
-k playlist-next
-ENTER playlist-next
+j script-message pp_prev_wrap
+k script-message pp_next_wrap
+ENTER script-message pp_next_wrap
 
 b script-message pp_browser_toggle
 
@@ -159,6 +159,27 @@ local function toggle()
 end
 
 mp.register_script_message("pp_browser_toggle", toggle)
+
+local function next_wrap()
+  local count = mp.get_property_number('playlist-count', 0)
+  if count <= 0 then return end
+  local pos = mp.get_property_number('playlist-pos', 0)
+  local next = pos + 1
+  if next >= count then next = 0 end
+  mp.commandv("playlist-play-index", next)
+end
+
+local function prev_wrap()
+  local count = mp.get_property_number('playlist-count', 0)
+  if count <= 0 then return end
+  local pos = mp.get_property_number('playlist-pos', 0)
+  local prev = pos - 1
+  if prev < 0 then prev = count - 1 end
+  mp.commandv("playlist-play-index", prev)
+end
+
+mp.register_script_message("pp_next_wrap", next_wrap)
+mp.register_script_message("pp_prev_wrap", prev_wrap)
 
 local function is_probably_local_file(p)
   if p == nil or p == "" then return false end

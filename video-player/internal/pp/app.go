@@ -194,6 +194,17 @@ func (a *App) bumpSpeed(delta float64) error {
 
 func (a *App) Next(ctx context.Context) error {
 	_ = a.persistPosition()
+	a.syncIndex()
+	if len(a.Playlist) > 0 && a.Index >= len(a.Playlist)-1 {
+		_ = a.MPV.Command(ctx, "playlist-play-index", 0)
+		a.Index = 0
+		a.osd("Loop → start")
+		if !a.Continuous {
+			a.pauseAfterLoad = false
+		}
+		return nil
+	}
+
 	_ = a.MPV.Command(ctx, "playlist-next", "weak")
 	a.syncIndex()
 	a.osd("Next")
@@ -205,6 +216,18 @@ func (a *App) Next(ctx context.Context) error {
 
 func (a *App) Prev(ctx context.Context) error {
 	_ = a.persistPosition()
+	a.syncIndex()
+	if len(a.Playlist) > 0 && a.Index <= 0 {
+		last := len(a.Playlist) - 1
+		_ = a.MPV.Command(ctx, "playlist-play-index", last)
+		a.Index = last
+		a.osd("Loop → end")
+		if !a.Continuous {
+			a.pauseAfterLoad = false
+		}
+		return nil
+	}
+
 	_ = a.MPV.Command(ctx, "playlist-prev", "weak")
 	a.syncIndex()
 	a.osd("Prev")
