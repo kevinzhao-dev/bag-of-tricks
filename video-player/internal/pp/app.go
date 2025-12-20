@@ -142,6 +142,12 @@ func (a *App) handleRune(r rune, in *bufio.Reader) (quit bool, err error) {
 	case ':':
 		return a.commandMode(in)
 	default:
+		if r >= '1' && r <= '9' {
+			pct := int(r-'0') * 10
+			_ = a.MPV.Command(context.Background(), "seek", pct, "absolute-percent")
+			a.osd(fmt.Sprintf("Jump %d%%", pct))
+			return false, nil
+		}
 		return false, nil
 	}
 }
@@ -157,6 +163,7 @@ func (a *App) ShowHelpOnce() {
 	fmt.Fprintln(os.Stdout, "  ←/→    seek ±short")
 	fmt.Fprintln(os.Stdout, "  ↑/↓    seek ±long")
 	fmt.Fprintln(os.Stdout, "  WASD   seek (same as arrows)")
+	fmt.Fprintln(os.Stdout, "  1-9    jump 10%-90%")
 	fmt.Fprintln(os.Stdout, "  j/k    prev/next video")
 	fmt.Fprintln(os.Stdout, "  m      mute")
 	fmt.Fprintln(os.Stdout, "  [/ ]   speed -/+ 0.1x")

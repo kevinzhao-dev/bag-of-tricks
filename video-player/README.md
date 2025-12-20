@@ -67,6 +67,7 @@ make uninstall
 - `←/→`: seek `±--seek-short` seconds (default 10)
 - `↑/↓`: seek `±--seek-long` seconds (default 60)
 - `W/A/S/D`: seek (same as arrow keys)
+- `1`–`9`: jump to `10%`–`90%`
 - `j` / `k` (or `Enter`): previous / next video
 - `m`: mute
 - `[` / `]`: speed `- / +` 0.1x (clamped to 0.1x–3.0x)
