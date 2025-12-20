@@ -66,8 +66,8 @@ make uninstall
 - `Space`: play/pause
 - `←/→`: seek `±--seek-short` seconds (default 10)
 - `↑/↓`: seek `±--seek-long` seconds (default 60)
+- `W/A/S/D`: seek (same as arrow keys)
 - `j` / `k` (or `Enter`): previous / next video
-- `s` / `e`: start / end(-5s)
 - `m`: mute
 - `[` / `]`: speed `- / +` 0.1x (clamped to 0.1x–3.0x)
 - `f`: fullscreen

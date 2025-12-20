@@ -112,20 +112,21 @@ func (a *App) handleRune(r rune, in *bufio.Reader) (quit bool, err error) {
 		return false, a.Prev(context.Background())
 	case 'k', '\r', '\n':
 		return false, a.Next(context.Background())
-	case 's':
-		_ = a.MPV.Command(context.Background(), "seek", 0, "absolute")
-		a.osd("Start")
+	case 'a':
+		_ = a.MPV.Command(context.Background(), "seek", -a.SeekShortS, "relative")
+		a.osd(fmt.Sprintf("◀ %.0fs", a.SeekShortS))
 		return false, nil
-	case 'e':
-		dur, err := a.MPV.GetFloat(withTimeout(400*time.Millisecond), "duration")
-		if err == nil && dur > 0 {
-			target := dur - 5
-			if target < 0 {
-				target = 0
-			}
-			_ = a.MPV.Command(context.Background(), "seek", target, "absolute")
-			a.osd("End (-5s)")
-		}
+	case 'd':
+		_ = a.MPV.Command(context.Background(), "seek", a.SeekShortS, "relative")
+		a.osd(fmt.Sprintf("▶ %.0fs", a.SeekShortS))
+		return false, nil
+	case 'w':
+		_ = a.MPV.Command(context.Background(), "seek", a.SeekLongS, "relative")
+		a.osd(fmt.Sprintf("▶ %.0fs", a.SeekLongS))
+		return false, nil
+	case 's':
+		_ = a.MPV.Command(context.Background(), "seek", -a.SeekLongS, "relative")
+		a.osd(fmt.Sprintf("◀ %.0fs", a.SeekLongS))
 		return false, nil
 	case 'm':
 		_ = a.MPV.Command(context.Background(), "cycle", "mute")
@@ -147,7 +148,7 @@ func (a *App) handleRune(r rune, in *bufio.Reader) (quit bool, err error) {
 
 func (a *App) ShowHelpOnce() {
 	if a.helpShown {
-		a.osd("Keys: space pause, arrows seek, j/k prev/next, : commands, q quit")
+		a.osd("Keys: space pause, arrows/WASD seek, j/k prev/next, : commands, q quit")
 		return
 	}
 	a.helpShown = true
@@ -155,8 +156,8 @@ func (a *App) ShowHelpOnce() {
 	fmt.Fprintln(os.Stdout, "  Space  play/pause")
 	fmt.Fprintln(os.Stdout, "  ←/→    seek ±short")
 	fmt.Fprintln(os.Stdout, "  ↑/↓    seek ±long")
+	fmt.Fprintln(os.Stdout, "  WASD   seek (same as arrows)")
 	fmt.Fprintln(os.Stdout, "  j/k    prev/next video")
-	fmt.Fprintln(os.Stdout, "  s/e    start / end(-5s)")
 	fmt.Fprintln(os.Stdout, "  m      mute")
 	fmt.Fprintln(os.Stdout, "  [/ ]   speed -/+ 0.1x")
 	fmt.Fprintln(os.Stdout, "  :      command mode (ls/open/seek/jump)")

@@ -37,6 +37,11 @@ RIGHT seek +%.0f relative
 UP    seek +%.0f relative
 DOWN  seek -%.0f relative
 
+a     seek -%.0f relative
+d     seek +%.0f relative
+w     seek +%.0f relative
+s     seek -%.0f relative
+
 j script-message pp_prev_wrap
 k script-message pp_next_wrap
 ENTER script-message pp_next_wrap
@@ -47,9 +52,6 @@ B script-message pp_browser_toggle
 BS  script-message pp_trash_current
 DEL script-message pp_trash_current
 
-s seek 0 absolute
-e seek 100 absolute-percent; seek -5 relative
-
 m cycle mute
 [ add speed -0.1
 ] add speed 0.1
@@ -58,7 +60,10 @@ f cycle fullscreen
 
 q quit
 ESC quit
-`)+"\n", opts.SeekShortS, opts.SeekShortS, opts.SeekLongS, opts.SeekLongS)
+`)+"\n",
+		opts.SeekShortS, opts.SeekShortS, opts.SeekLongS, opts.SeekLongS,
+		opts.SeekShortS, opts.SeekShortS, opts.SeekLongS, opts.SeekLongS,
+	)
 
 	if err := os.WriteFile(path, []byte(conf), 0o644); err != nil {
 		return "", nil, err
