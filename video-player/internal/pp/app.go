@@ -108,9 +108,9 @@ func (a *App) handleRune(r rune, in *bufio.Reader) (quit bool, err error) {
 		_ = a.persistPosition()
 		_ = a.MPV.Command(context.Background(), "quit")
 		return true, nil
-	case 'j':
+	case 'j', 'e':
 		return false, a.Prev(context.Background())
-	case 'k', '\r', '\n':
+	case 'k', 'r', '\r', '\n':
 		return false, a.Next(context.Background())
 	case 'a':
 		_ = a.MPV.Command(context.Background(), "seek", -a.SeekShortS, "relative")
@@ -165,6 +165,7 @@ func (a *App) ShowHelpOnce() {
 	fmt.Fprintln(os.Stdout, "  WASD   seek (same as arrows)")
 	fmt.Fprintln(os.Stdout, "  1-9    jump 10%-90%")
 	fmt.Fprintln(os.Stdout, "  j/k    prev/next video")
+	fmt.Fprintln(os.Stdout, "  e/r    prev/next video")
 	fmt.Fprintln(os.Stdout, "  m      mute")
 	fmt.Fprintln(os.Stdout, "  [/ ]   speed -/+ 0.1x")
 	fmt.Fprintln(os.Stdout, "  :      command mode (ls/open/seek/jump)")
