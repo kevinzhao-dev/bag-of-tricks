@@ -4,7 +4,7 @@ Generate subtitle files from a video or audio file using OpenAI Whisper, then tr
 
 ## Requirements
 
-- Python 3.9+
+- Go 1.22+
 - ffmpeg on PATH
 - ffprobe on PATH (bundled with ffmpeg; required for chunking)
 - `OPENAI_API_KEY` environment variable
@@ -12,8 +12,16 @@ Generate subtitle files from a video or audio file using OpenAI Whisper, then tr
 ## Install
 
 ```bash
-pip install -e .
+make build
 ```
+
+For a GOPATH install:
+
+```bash
+make install
+```
+
+The `make build` target places the binary at `video-subtitle/bin/video-subtitle`.
 
 ## Usage
 
@@ -62,4 +70,10 @@ To silence progress output:
 
 ```bash
 video-subtitle /path/to/video.mp4 --quiet
+```
+
+To speed up translation with concurrency:
+
+```bash
+video-subtitle /path/to/video.mp4 --translate-workers 6
 ```
