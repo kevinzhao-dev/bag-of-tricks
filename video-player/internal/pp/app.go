@@ -104,13 +104,9 @@ func (a *App) Run() error {
 
 func (a *App) handleRune(r rune, in *bufio.Reader) (quit bool, err error) {
 	switch r {
-	case 'q':
-		_ = a.persistPosition()
-		_ = a.MPV.Command(context.Background(), "quit")
-		return true, nil
-	case 'j', 'e':
+	case 'j', 'q':
 		return false, a.Prev(context.Background())
-	case 'k', 'r', '\r', '\n':
+	case 'k', 'e', '\r', '\n':
 		return false, a.Next(context.Background())
 	case 'a':
 		_ = a.MPV.Command(context.Background(), "seek", -a.SeekShortS, "relative")
@@ -154,7 +150,7 @@ func (a *App) handleRune(r rune, in *bufio.Reader) (quit bool, err error) {
 
 func (a *App) ShowHelpOnce() {
 	if a.helpShown {
-		a.osd("Keys: space pause, arrows/WASD seek, j/k prev/next, : commands, q quit")
+		a.osd("Keys: space pause, arrows/WASD seek, j/k/q/e prev/next, : commands, Esc quit")
 		return
 	}
 	a.helpShown = true
@@ -165,11 +161,11 @@ func (a *App) ShowHelpOnce() {
 	fmt.Fprintln(os.Stdout, "  WASD   seek (same as arrows)")
 	fmt.Fprintln(os.Stdout, "  1-9    jump 10%-90%")
 	fmt.Fprintln(os.Stdout, "  j/k    prev/next video")
-	fmt.Fprintln(os.Stdout, "  e/r    prev/next video")
+	fmt.Fprintln(os.Stdout, "  q/e    prev/next video")
 	fmt.Fprintln(os.Stdout, "  m      mute")
 	fmt.Fprintln(os.Stdout, "  [/ ]   speed -/+ 0.1x")
 	fmt.Fprintln(os.Stdout, "  :      command mode (ls/open/seek/jump)")
-	fmt.Fprintln(os.Stdout, "  q/Esc  quit")
+	fmt.Fprintln(os.Stdout, "  Esc    quit")
 	fmt.Fprintln(os.Stdout)
 	a.osd("Ready. Press : for commands, h for help.")
 }
@@ -353,9 +349,9 @@ func (a *App) commandMode(in *bufio.Reader) (quit bool, err error) {
 	switch cmd {
 	case "h", "help", "?":
 		a.ShowHelpOnce()
-		a.osd(":ls, :open, :seek, :jump, :n, :p, :q")
+		a.osd(":ls, :open, :seek, :jump, :n, :p, :quit")
 		return false, nil
-	case "q", "quit", "exit":
+	case "quit", "exit":
 		_ = a.persistPosition()
 		_ = a.MPV.Command(context.Background(), "quit")
 		return true, nil

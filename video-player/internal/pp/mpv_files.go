@@ -44,8 +44,8 @@ s     seek -%.0f relative
 
 j script-message pp_prev_wrap
 k script-message pp_next_wrap
-e script-message pp_prev_wrap
-r script-message pp_next_wrap
+q script-message pp_prev_wrap
+e script-message pp_next_wrap
 ENTER script-message pp_next_wrap
 
 b script-message pp_browser_toggle
@@ -70,7 +70,6 @@ m cycle mute
 
 f cycle fullscreen
 
-q quit
 ESC quit
 `)+"\n",
 		opts.SeekShortS, opts.SeekShortS, opts.SeekLongS, opts.SeekLongS,
