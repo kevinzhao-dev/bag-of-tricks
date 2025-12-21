@@ -51,6 +51,9 @@ ENTER script-message pp_next_wrap
 b script-message pp_browser_toggle
 B script-message pp_browser_toggle
 
+x script-message pp_screenshot
+X script-message pp_screenshot
+
 BS  script-message pp_trash_current
 DEL script-message pp_trash_current
 
@@ -245,6 +248,48 @@ end
 
 mp.register_script_message("pp_next_wrap", next_wrap)
 mp.register_script_message("pp_prev_wrap", prev_wrap)
+
+local function mkdir_p(path)
+  if path == nil or path == "" then return end
+  if utils.file_info(path) ~= nil then return end
+  local sep = package.config:sub(1,1)
+  if sep == "\\" then
+    utils.subprocess({ args = { "cmd", "/c", "mkdir", path } })
+  else
+    utils.subprocess({ args = { "mkdir", "-p", path } })
+  end
+end
+
+local function screenshot()
+  local wd = mp.get_property("working-directory")
+  if wd == nil or wd == "" then
+    mp.osd_message("Snapshot failed (no wd)", 1.5)
+    return
+  end
+
+  local dir = utils.join_path(wd, "snapshots")
+  mkdir_p(dir)
+
+  local p = mp.get_property("path") or ""
+  local base = basename(p)
+  base = string.gsub(base, "%.%w+$", "")
+  if base == "" then base = "snapshot" end
+
+  local pos = mp.get_property_number("time-pos", 0) or 0
+  if pos < 0 then pos = 0 end
+  local ms = math.floor(pos * 1000 + 0.5)
+  local h = math.floor(ms / 3600000)
+  local m = math.floor(ms / 60000) % 60
+  local s = math.floor(ms / 1000) % 60
+  local mmm = ms % 1000
+  local name = string.format("%s_%02dh%02dm%02ds%03dms.jpg", base, h, m, s, mmm)
+  local out = utils.join_path(dir, name)
+
+  mp.commandv("screenshot-to-file", out, "window")
+  mp.osd_message("Saved: " .. name, 1.5)
+end
+
+mp.register_script_message("pp_screenshot", screenshot)
 
 local function applescript_escape(s)
   s = string.gsub(s, "\\", "\\\\")

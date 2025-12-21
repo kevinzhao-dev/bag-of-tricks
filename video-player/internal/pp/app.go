@@ -108,6 +108,12 @@ func (a *App) handleRune(r rune, in *bufio.Reader) (quit bool, err error) {
 		return false, a.Prev(context.Background())
 	case 'k', 'e', '\r', '\n':
 		return false, a.Next(context.Background())
+	case 'x', 'X':
+		if err := a.SaveSnapshot(context.Background()); err != nil {
+			a.osd("Snapshot failed")
+			return false, nil
+		}
+		return false, nil
 	case 'a':
 		_ = a.MPV.Command(context.Background(), "seek", -a.SeekShortS, "relative")
 		a.osd(fmt.Sprintf("◀ %.0fs", a.SeekShortS))
@@ -150,7 +156,7 @@ func (a *App) handleRune(r rune, in *bufio.Reader) (quit bool, err error) {
 
 func (a *App) ShowHelpOnce() {
 	if a.helpShown {
-		a.osd("Keys: space pause, arrows/WASD seek, j/k/q/e prev/next, : commands, Esc quit")
+		a.osd("Keys: space pause, arrows/WASD seek, j/k/q/e prev/next, x snapshot, : commands, Esc quit")
 		return
 	}
 	a.helpShown = true
@@ -162,6 +168,7 @@ func (a *App) ShowHelpOnce() {
 	fmt.Fprintln(os.Stdout, "  1-9    jump 10%-90%")
 	fmt.Fprintln(os.Stdout, "  j/k    prev/next video")
 	fmt.Fprintln(os.Stdout, "  q/e    prev/next video")
+	fmt.Fprintln(os.Stdout, "  x      snapshot (./snapshots)")
 	fmt.Fprintln(os.Stdout, "  m      mute")
 	fmt.Fprintln(os.Stdout, "  [/ ]   speed -/+ 0.1x")
 	fmt.Fprintln(os.Stdout, "  :      command mode (ls/open/seek/jump)")
@@ -173,6 +180,54 @@ func (a *App) ShowHelpOnce() {
 func (a *App) osd(msg string) {
 	ctx := withTimeout(200 * time.Millisecond)
 	_ = a.MPV.Command(ctx, "show-text", msg, 1500)
+}
+
+func (a *App) SaveSnapshot(ctx context.Context) error {
+	wd, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	dir := filepath.Join(wd, "snapshots")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+
+	path, err := a.MPV.GetString(withTimeout(300*time.Millisecond), "path")
+	if err != nil || path == "" {
+		if a.Index >= 0 && a.Index < len(a.Playlist) {
+			path = a.Playlist[a.Index]
+		}
+	}
+	base := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
+	if base == "" {
+		base = "snapshot"
+	}
+
+	pos, err := a.MPV.GetFloat(withTimeout(300*time.Millisecond), "time-pos")
+	if err != nil || pos < 0 {
+		pos = 0
+	}
+	ms := int64(pos * 1000)
+	h := ms / 3600000
+	m := (ms / 60000) % 60
+	s := (ms / 1000) % 60
+	mmm := ms % 1000
+	name := fmt.Sprintf("%s_%02dh%02dm%02ds%03dms.jpg", base, h, m, s, mmm)
+	outPath := filepath.Join(dir, name)
+
+	// Avoid overwriting if the user takes multiple snapshots within the same millisecond.
+	for i := 2; i < 1000; i++ {
+		if _, err := os.Stat(outPath); err != nil {
+			break
+		}
+		outPath = filepath.Join(dir, fmt.Sprintf("%s_%02dh%02dm%02ds%03dms-%d.jpg", base, h, m, s, mmm, i))
+	}
+
+	if err := a.MPV.Command(ctx, "screenshot-to-file", outPath, "window"); err != nil {
+		return err
+	}
+	a.osd("Saved: " + filepath.Base(outPath))
+	return nil
 }
 
 func withTimeout(d time.Duration) context.Context {
