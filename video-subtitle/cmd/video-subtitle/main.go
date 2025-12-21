@@ -29,6 +29,7 @@ const (
 	defaultChunkSeconds     = 600
 	defaultMaxAudioMB       = 24
 	defaultTranslateWorkers = 4
+	defaultTimeoutSeconds   = 900
 	maxRetries              = 4
 	baseRetryDelay          = 1 * time.Second
 	maxRetryDelay           = 20 * time.Second
@@ -60,16 +61,19 @@ type openAIClient struct {
 	httpClient *http.Client
 }
 
-func newOpenAIClient(apiKey string) *openAIClient {
+func newOpenAIClient(apiKey string, timeout time.Duration) *openAIClient {
 	baseURL := strings.TrimRight(os.Getenv("OPENAI_BASE_URL"), "/")
 	if baseURL == "" {
 		baseURL = "https://api.openai.com/v1"
+	}
+	if timeout <= 0 {
+		timeout = time.Duration(defaultTimeoutSeconds) * time.Second
 	}
 	return &openAIClient{
 		apiKey:  apiKey,
 		baseURL: baseURL,
 		httpClient: &http.Client{
-			Timeout: 5 * time.Minute,
+			Timeout: timeout,
 		},
 	}
 }
@@ -693,6 +697,7 @@ func run() int {
 	maxAudioMB := flag.Int("max-audio-mb", defaultMaxAudioMB, "Auto-chunk when extracted audio exceeds this size (MB)")
 	keepAudio := flag.Bool("keep-audio", false, "Keep the extracted audio file")
 	translateWorkers := flag.Int("translate-workers", defaultTranslateWorkers, "Number of concurrent translation workers")
+	timeoutSeconds := flag.Int("timeout-seconds", defaultTimeoutSeconds, "HTTP timeout for OpenAI requests (seconds)")
 	flag.Parse()
 
 	if flag.NArg() < 1 {
@@ -728,7 +733,7 @@ func run() int {
 		outputPath = strings.TrimSuffix(inputPath, ext) + ".srt"
 	}
 
-	client := newOpenAIClient(apiKey)
+	client := newOpenAIClient(apiKey, time.Duration(*timeoutSeconds)*time.Second)
 	ctx := context.Background()
 
 	logf := func(format string, args ...any) {
