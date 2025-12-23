@@ -75,6 +75,7 @@ make uninstall
 - `j` / `k` (or `Enter`): previous / next video
 - `q` / `e`: previous / next video
 - `x`: save snapshot to `./snapshots`
+- `+` / `-`: enlarge / shrink window
 - `m`: mute
 - `[` / `]`: speed `- / +` 0.1x (clamped to 0.1x–3.0x)
 - `f`: fullscreen

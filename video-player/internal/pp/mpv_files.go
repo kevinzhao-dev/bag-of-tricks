@@ -61,6 +61,11 @@ m cycle mute
 [ add speed -0.1
 ] add speed 0.1
 
++ add window-scale 0.1
+= add window-scale 0.1
+- add window-scale -0.1
+_ add window-scale -0.1
+
 1 seek 10 absolute-percent
 2 seek 20 absolute-percent
 3 seek 30 absolute-percent

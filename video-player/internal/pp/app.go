@@ -114,6 +114,12 @@ func (a *App) handleRune(r rune, in *bufio.Reader) (quit bool, err error) {
 			return false, nil
 		}
 		return false, nil
+	case '+', '=':
+		_ = a.bumpWindowScale(0.1)
+		return false, nil
+	case '-', '_':
+		_ = a.bumpWindowScale(-0.1)
+		return false, nil
 	case 'a':
 		_ = a.MPV.Command(context.Background(), "seek", -a.SeekShortS, "relative")
 		a.osd(fmt.Sprintf("◀ %.0fs", a.SeekShortS))
@@ -156,7 +162,7 @@ func (a *App) handleRune(r rune, in *bufio.Reader) (quit bool, err error) {
 
 func (a *App) ShowHelpOnce() {
 	if a.helpShown {
-		a.osd("Keys: space pause, arrows/WASD seek, j/k/q/e prev/next, x snapshot, : commands, Esc quit")
+		a.osd("Keys: space pause, arrows/WASD seek, j/k/q/e prev/next, x snapshot, +/- scale, : commands, Esc quit")
 		return
 	}
 	a.helpShown = true
@@ -169,6 +175,7 @@ func (a *App) ShowHelpOnce() {
 	fmt.Fprintln(os.Stdout, "  j/k    prev/next video")
 	fmt.Fprintln(os.Stdout, "  q/e    prev/next video")
 	fmt.Fprintln(os.Stdout, "  x      snapshot (./snapshots)")
+	fmt.Fprintln(os.Stdout, "  +/-    window scale")
 	fmt.Fprintln(os.Stdout, "  m      mute")
 	fmt.Fprintln(os.Stdout, "  [/ ]   speed -/+ 0.1x")
 	fmt.Fprintln(os.Stdout, "  :      command mode (ls/open/seek/jump)")
@@ -233,6 +240,23 @@ func (a *App) SaveSnapshot(ctx context.Context) error {
 func withTimeout(d time.Duration) context.Context {
 	ctx, _ := context.WithTimeout(context.Background(), d)
 	return ctx
+}
+
+func (a *App) bumpWindowScale(delta float64) error {
+	cur, err := a.MPV.GetFloat(withTimeout(250*time.Millisecond), "window-scale")
+	if err != nil || cur <= 0 {
+		cur = 1.0
+	}
+	next := cur + delta
+	if next < 0.2 {
+		next = 0.2
+	}
+	if next > 5.0 {
+		next = 5.0
+	}
+	_ = a.MPV.Command(context.Background(), "set_property", "window-scale", next)
+	a.osd(fmt.Sprintf("Scale %.1fx", next))
+	return nil
 }
 
 func (a *App) bumpSpeed(delta float64) error {
