@@ -69,6 +69,7 @@ make uninstall
 
 - `Space`: play/pause
 - `←/→`: seek `±--seek-fine` seconds (default 1)
+- `Z/C`: seek `±--seek-fine` seconds (same as arrows)
 - `↑/↓`: seek `±--seek-long` seconds (default 60)
 - `W/A/S/D`: seek (`A/D` = `--seek-short`, `W/S` = `--seek-long`)
 - `1`–`9`: jump to `10%`–`90%`

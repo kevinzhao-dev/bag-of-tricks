@@ -33,15 +33,18 @@ func WriteTempInputConf(opts KeybindOptions) (path string, cleanup func(), err e
 	// Keep bindings simple and mpv-native so they work when the mpv window is focused.
 	conf := fmt.Sprintf(strings.TrimSpace(`
 SPACE cycle pause
-LEFT  seek -%.0f relative
-RIGHT seek +%.0f relative
-UP    seek +%.0f relative
-DOWN  seek -%.0f relative
+LEFT  seek -%s relative
+RIGHT seek +%s relative
+UP    seek +%s relative
+DOWN  seek -%s relative
 
-a     seek -%.0f relative
-d     seek +%.0f relative
-w     seek +%.0f relative
-s     seek -%.0f relative
+z     seek -%s relative
+c     seek +%s relative
+
+a     seek -%s relative
+d     seek +%s relative
+w     seek +%s relative
+s     seek -%s relative
 
 j script-message pp_prev_wrap
 k script-message pp_next_wrap
@@ -81,14 +84,32 @@ f cycle fullscreen
 
 ESC quit
 `)+"\n",
-		opts.SeekFineS, opts.SeekFineS, opts.SeekLongS, opts.SeekLongS,
-		opts.SeekShortS, opts.SeekShortS, opts.SeekLongS, opts.SeekLongS,
+		formatSeekSeconds(opts.SeekFineS),
+		formatSeekSeconds(opts.SeekFineS),
+		formatSeekSeconds(opts.SeekLongS),
+		formatSeekSeconds(opts.SeekLongS),
+		formatSeekSeconds(opts.SeekFineS),
+		formatSeekSeconds(opts.SeekFineS),
+		formatSeekSeconds(opts.SeekShortS),
+		formatSeekSeconds(opts.SeekShortS),
+		formatSeekSeconds(opts.SeekLongS),
+		formatSeekSeconds(opts.SeekLongS),
 	)
 
 	if err := os.WriteFile(path, []byte(conf), 0o644); err != nil {
 		return "", nil, err
 	}
 	return path, func() { _ = os.Remove(path) }, nil
+}
+
+func formatSeekSeconds(v float64) string {
+	s := strconv.FormatFloat(v, 'f', 3, 64)
+	s = strings.TrimRight(s, "0")
+	s = strings.TrimRight(s, ".")
+	if s == "" || s == "-" {
+		return "0"
+	}
+	return s
 }
 
 func WriteTempBrowserScript() (path string, cleanup func(), err error) {

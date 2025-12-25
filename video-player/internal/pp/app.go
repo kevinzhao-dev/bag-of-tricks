@@ -81,10 +81,10 @@ func (a *App) Run() error {
 			a.osd("Toggle pause")
 		case tty.KeyLeft:
 			_ = a.MPV.Command(context.Background(), "seek", -a.SeekFineS, "relative")
-			a.osd(fmt.Sprintf("◀ %.0fs", a.SeekFineS))
+			a.osd(fmt.Sprintf("◀ %ss", formatSeconds(a.SeekFineS)))
 		case tty.KeyRight:
 			_ = a.MPV.Command(context.Background(), "seek", a.SeekFineS, "relative")
-			a.osd(fmt.Sprintf("▶ %.0fs", a.SeekFineS))
+			a.osd(fmt.Sprintf("▶ %ss", formatSeconds(a.SeekFineS)))
 		case tty.KeyUp:
 			_ = a.MPV.Command(context.Background(), "seek", a.SeekLongS, "relative")
 			a.osd(fmt.Sprintf("▶ %.0fs", a.SeekLongS))
@@ -120,6 +120,14 @@ func (a *App) handleRune(r rune, in *bufio.Reader) (quit bool, err error) {
 		return false, nil
 	case '-', '_':
 		_ = a.bumpWindowScale(-0.1)
+		return false, nil
+	case 'z':
+		_ = a.MPV.Command(context.Background(), "seek", -a.SeekFineS, "relative")
+		a.osd(fmt.Sprintf("◀ %ss", formatSeconds(a.SeekFineS)))
+		return false, nil
+	case 'c':
+		_ = a.MPV.Command(context.Background(), "seek", a.SeekFineS, "relative")
+		a.osd(fmt.Sprintf("▶ %ss", formatSeconds(a.SeekFineS)))
 		return false, nil
 	case 'a':
 		_ = a.MPV.Command(context.Background(), "seek", -a.SeekShortS, "relative")
@@ -163,13 +171,14 @@ func (a *App) handleRune(r rune, in *bufio.Reader) (quit bool, err error) {
 
 func (a *App) ShowHelpOnce() {
 	if a.helpShown {
-		a.osd("Keys: space pause, arrows fine, WASD short/long, j/k/q/e prev/next, x snapshot, +/- scale, : commands, Esc quit")
+		a.osd("Keys: space pause, arrows/ZC fine, WASD short/long, j/k/q/e prev/next, x snapshot, +/- scale, : commands, Esc quit")
 		return
 	}
 	a.helpShown = true
 	fmt.Fprintln(os.Stdout, "\npp (Go) controls:")
 	fmt.Fprintln(os.Stdout, "  Space  play/pause")
 	fmt.Fprintln(os.Stdout, "  ←/→    seek ±fine")
+	fmt.Fprintln(os.Stdout, "  Z/C    seek ±fine (same as arrows)")
 	fmt.Fprintln(os.Stdout, "  ↑/↓    seek ±long")
 	fmt.Fprintln(os.Stdout, "  WASD   seek (A/D=short, W/S=long)")
 	fmt.Fprintln(os.Stdout, "  1-9    jump 10%-90%")
@@ -258,6 +267,16 @@ func (a *App) bumpWindowScale(delta float64) error {
 	_ = a.MPV.Command(context.Background(), "set_property", "window-scale", next)
 	a.osd(fmt.Sprintf("Scale %.1fx", next))
 	return nil
+}
+
+func formatSeconds(v float64) string {
+	s := strconv.FormatFloat(v, 'f', 3, 64)
+	s = strings.TrimRight(s, "0")
+	s = strings.TrimRight(s, ".")
+	if s == "" || s == "-" {
+		return "0"
+	}
+	return s
 }
 
 func (a *App) bumpSpeed(delta float64) error {
