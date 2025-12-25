@@ -17,8 +17,9 @@ import (
 
 func main() {
 	var (
-		seekShort   = flag.Int("seek-short", 10, "short seek seconds")
-		seekLong    = flag.Int("seek-long", 60, "long seek seconds")
+		seekFine    = flag.Int("seek-fine", 1, "fine seek seconds (left/right)")
+		seekShort   = flag.Int("seek-short", 10, "short seek seconds (A/D)")
+		seekLong    = flag.Int("seek-long", 60, "long seek seconds (up/down, W/S)")
 		continuous  = flag.Bool("continuous", false, "auto-advance to next video on end")
 		autoplay    = flag.Bool("autoplay", true, "auto-play on start (default true; forces pause=false after load)")
 		noAutoplay  = flag.Bool("no-autoplay", false, "disable autoplay on start")
@@ -33,7 +34,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Path may be a video file or a directory (default: .).\n\nFlags:\n")
 		flag.PrintDefaults()
 		fmt.Fprintf(os.Stderr, "\nKeys:\n")
-		fmt.Fprintf(os.Stderr, "  Space  play/pause\n  ←/→    seek ±short\n  ↑/↓    seek ±long\n  WASD   seek (same as arrows)\n  1-9    jump 10%%-90%%\n  j/k    prev/next video\n  q/e    prev/next video\n  x      snapshot (./snapshots)\n  +/-    window scale\n  m      mute\n  [/ ]   speed -/+ 0.1x\n  :      command mode\n  Esc    quit\n")
+		fmt.Fprintf(os.Stderr, "  Space  play/pause\n  ←/→    seek ±fine\n  ↑/↓    seek ±long\n  WASD   seek (A/D=short, W/S=long)\n  1-9    jump 10%%-90%%\n  j/k    prev/next video\n  q/e    prev/next video\n  x      snapshot (./snapshots)\n  +/-    window scale\n  m      mute\n  [/ ]   speed -/+ 0.1x\n  :      command mode\n  Esc    quit\n")
 		fmt.Fprintf(os.Stderr, "\nCommand mode examples:\n")
 		fmt.Fprintf(os.Stderr, "  :ls\n  :open 3\n  :open substring\n  :seek +30\n  :jump 50%%\n")
 	}
@@ -95,6 +96,7 @@ func main() {
 
 	inputConfPath, cleanupInputConf, err := pp.WriteTempInputConf(pp.KeybindOptions{
 		SeekShortS: float64(*seekShort),
+		SeekFineS:  float64(*seekFine),
 		SeekLongS:  float64(*seekLong),
 	})
 	if err != nil {
@@ -144,6 +146,7 @@ func main() {
 		Playlist:    playlist,
 		Index:       startIndex,
 		SeekShortS:  float64(*seekShort),
+		SeekFineS:   float64(*seekFine),
 		SeekLongS:   float64(*seekLong),
 		Continuous:  *continuous,
 		AutoPlay:    autoPlayEffective,

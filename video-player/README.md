@@ -68,9 +68,9 @@ make uninstall
 ## Keyboard controls
 
 - `Space`: play/pause
-- `←/→`: seek `±--seek-short` seconds (default 10)
+- `←/→`: seek `±--seek-fine` seconds (default 1)
 - `↑/↓`: seek `±--seek-long` seconds (default 60)
-- `W/A/S/D`: seek (same as arrow keys)
+- `W/A/S/D`: seek (`A/D` = `--seek-short`, `W/S` = `--seek-long`)
 - `1`–`9`: jump to `10%`–`90%`
 - `j` / `k` (or `Enter`): previous / next video
 - `q` / `e`: previous / next video

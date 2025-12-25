@@ -22,6 +22,7 @@ func WriteTempPlaylist(files []string) (path string, cleanup func(), err error) 
 
 type KeybindOptions struct {
 	SeekShortS float64
+	SeekFineS  float64
 	SeekLongS  float64
 }
 
@@ -80,7 +81,7 @@ f cycle fullscreen
 
 ESC quit
 `)+"\n",
-		opts.SeekShortS, opts.SeekShortS, opts.SeekLongS, opts.SeekLongS,
+		opts.SeekFineS, opts.SeekFineS, opts.SeekLongS, opts.SeekLongS,
 		opts.SeekShortS, opts.SeekShortS, opts.SeekLongS, opts.SeekLongS,
 	)
 

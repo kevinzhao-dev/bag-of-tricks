@@ -25,6 +25,7 @@ type App struct {
 	Index    int
 
 	SeekShortS float64
+	SeekFineS  float64
 	SeekLongS  float64
 	Continuous bool
 	AutoPlay   bool
@@ -79,11 +80,11 @@ func (a *App) Run() error {
 			_ = a.MPV.Command(context.Background(), "cycle", "pause")
 			a.osd("Toggle pause")
 		case tty.KeyLeft:
-			_ = a.MPV.Command(context.Background(), "seek", -a.SeekShortS, "relative")
-			a.osd(fmt.Sprintf("◀ %.0fs", a.SeekShortS))
+			_ = a.MPV.Command(context.Background(), "seek", -a.SeekFineS, "relative")
+			a.osd(fmt.Sprintf("◀ %.0fs", a.SeekFineS))
 		case tty.KeyRight:
-			_ = a.MPV.Command(context.Background(), "seek", a.SeekShortS, "relative")
-			a.osd(fmt.Sprintf("▶ %.0fs", a.SeekShortS))
+			_ = a.MPV.Command(context.Background(), "seek", a.SeekFineS, "relative")
+			a.osd(fmt.Sprintf("▶ %.0fs", a.SeekFineS))
 		case tty.KeyUp:
 			_ = a.MPV.Command(context.Background(), "seek", a.SeekLongS, "relative")
 			a.osd(fmt.Sprintf("▶ %.0fs", a.SeekLongS))
@@ -162,15 +163,15 @@ func (a *App) handleRune(r rune, in *bufio.Reader) (quit bool, err error) {
 
 func (a *App) ShowHelpOnce() {
 	if a.helpShown {
-		a.osd("Keys: space pause, arrows/WASD seek, j/k/q/e prev/next, x snapshot, +/- scale, : commands, Esc quit")
+		a.osd("Keys: space pause, arrows fine, WASD short/long, j/k/q/e prev/next, x snapshot, +/- scale, : commands, Esc quit")
 		return
 	}
 	a.helpShown = true
 	fmt.Fprintln(os.Stdout, "\npp (Go) controls:")
 	fmt.Fprintln(os.Stdout, "  Space  play/pause")
-	fmt.Fprintln(os.Stdout, "  ←/→    seek ±short")
+	fmt.Fprintln(os.Stdout, "  ←/→    seek ±fine")
 	fmt.Fprintln(os.Stdout, "  ↑/↓    seek ±long")
-	fmt.Fprintln(os.Stdout, "  WASD   seek (same as arrows)")
+	fmt.Fprintln(os.Stdout, "  WASD   seek (A/D=short, W/S=long)")
 	fmt.Fprintln(os.Stdout, "  1-9    jump 10%-90%")
 	fmt.Fprintln(os.Stdout, "  j/k    prev/next video")
 	fmt.Fprintln(os.Stdout, "  q/e    prev/next video")
