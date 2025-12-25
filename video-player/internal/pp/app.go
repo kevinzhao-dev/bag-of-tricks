@@ -230,7 +230,7 @@ func (a *App) SaveSnapshot(ctx context.Context) error {
 		outPath = filepath.Join(dir, fmt.Sprintf("%s_%02dh%02dm%02ds%03dms-%d.jpg", base, h, m, s, mmm, i))
 	}
 
-	if err := a.MPV.Command(ctx, "screenshot-to-file", outPath, "window"); err != nil {
+	if err := a.MPV.Command(ctx, "screenshot-to-file", outPath, "video"); err != nil {
 		return err
 	}
 	a.osd("Saved: " + filepath.Base(outPath))

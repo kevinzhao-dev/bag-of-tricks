@@ -290,7 +290,7 @@ local function screenshot()
   local name = string.format("%s_%02dh%02dm%02ds%03dms.jpg", base, h, m, s, mmm)
   local out = utils.join_path(dir, name)
 
-  mp.commandv("screenshot-to-file", out, "window")
+  mp.commandv("screenshot-to-file", out, "video")
   mp.osd_message("Saved: " .. name, 1.5)
 end
 
