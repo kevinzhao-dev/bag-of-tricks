@@ -34,7 +34,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Path may be a video file or a directory (default: .).\n\nFlags:\n")
 		flag.PrintDefaults()
 		fmt.Fprintf(os.Stderr, "\nKeys:\n")
-		fmt.Fprintf(os.Stderr, "  Space  play/pause\n  ←/→    seek ±fine\n  Z/C    seek ±fine (same as arrows)\n  ↑/↓    seek ±long\n  WASD   seek (A/D=short, W/S=long)\n  1-9    jump 10%%-90%%\n  j/k    prev/next video\n  q/e    prev/next video\n  x      snapshot (./snapshots)\n  +/-    window scale\n  m      mute\n  [/ ]   speed -/+ 0.1x\n  :      command mode\n  Esc    quit\n")
+		fmt.Fprintf(os.Stderr, "  Space  play/pause\n  ←/→    seek ±fine\n  Z/C    seek ±fine (same as arrows)\n  ↑/↓    seek ±long\n  WASD   seek (A/D=short, W/S=long)\n  J/K    seek (long, same as ↑/↓)\n  1-9    jump 10%%-90%%\n  q/e    prev/next video\n  h/l    prev/next video\n  x      snapshot (./snapshots)\n  +/-    window scale\n  m      mute\n  [/ ]   speed -/+ 0.1x\n  :      command mode\n  Esc    quit\n")
 		fmt.Fprintf(os.Stderr, "\nCommand mode examples:\n")
 		fmt.Fprintf(os.Stderr, "  :ls\n  :open 3\n  :open substring\n  :seek +30\n  :jump 50%%\n")
 	}

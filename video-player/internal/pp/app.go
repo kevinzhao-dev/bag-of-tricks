@@ -105,9 +105,9 @@ func (a *App) Run() error {
 
 func (a *App) handleRune(r rune, in *bufio.Reader) (quit bool, err error) {
 	switch r {
-	case 'j', 'q':
+	case 'q', 'h':
 		return false, a.Prev(context.Background())
-	case 'k', 'e', '\r', '\n':
+	case 'e', 'l', '\r', '\n':
 		return false, a.Next(context.Background())
 	case 'x', 'X':
 		if err := a.SaveSnapshot(context.Background()); err != nil {
@@ -128,6 +128,14 @@ func (a *App) handleRune(r rune, in *bufio.Reader) (quit bool, err error) {
 	case 'c':
 		_ = a.MPV.Command(context.Background(), "seek", a.SeekFineS, "relative")
 		a.osd(fmt.Sprintf("▶ %ss", formatSeconds(a.SeekFineS)))
+		return false, nil
+	case 'k':
+		_ = a.MPV.Command(context.Background(), "seek", a.SeekLongS, "relative")
+		a.osd(fmt.Sprintf("▶ %.0fs", a.SeekLongS))
+		return false, nil
+	case 'j':
+		_ = a.MPV.Command(context.Background(), "seek", -a.SeekLongS, "relative")
+		a.osd(fmt.Sprintf("◀ %.0fs", a.SeekLongS))
 		return false, nil
 	case 'a':
 		_ = a.MPV.Command(context.Background(), "seek", -a.SeekShortS, "relative")
@@ -153,7 +161,7 @@ func (a *App) handleRune(r rune, in *bufio.Reader) (quit bool, err error) {
 		return false, a.bumpSpeed(-0.1)
 	case ']':
 		return false, a.bumpSpeed(0.1)
-	case 'h', '?':
+	case 'H', '?':
 		a.ShowHelpOnce()
 		return false, nil
 	case ':':
@@ -171,7 +179,7 @@ func (a *App) handleRune(r rune, in *bufio.Reader) (quit bool, err error) {
 
 func (a *App) ShowHelpOnce() {
 	if a.helpShown {
-		a.osd("Keys: space pause, arrows/ZC fine, WASD short/long, j/k/q/e prev/next, x snapshot, +/- scale, : commands, Esc quit")
+		a.osd("Keys: space pause, arrows/ZC fine, WASD short/long, j/k long, q/e/h/l prev/next, x snapshot, +/- scale, : commands, Esc quit")
 		return
 	}
 	a.helpShown = true
@@ -181,9 +189,10 @@ func (a *App) ShowHelpOnce() {
 	fmt.Fprintln(os.Stdout, "  Z/C    seek ±fine (same as arrows)")
 	fmt.Fprintln(os.Stdout, "  ↑/↓    seek ±long")
 	fmt.Fprintln(os.Stdout, "  WASD   seek (A/D=short, W/S=long)")
+	fmt.Fprintln(os.Stdout, "  J/K    seek (long, same as ↑/↓)")
 	fmt.Fprintln(os.Stdout, "  1-9    jump 10%-90%")
-	fmt.Fprintln(os.Stdout, "  j/k    prev/next video")
 	fmt.Fprintln(os.Stdout, "  q/e    prev/next video")
+	fmt.Fprintln(os.Stdout, "  h/l    prev/next video")
 	fmt.Fprintln(os.Stdout, "  x      snapshot (./snapshots)")
 	fmt.Fprintln(os.Stdout, "  +/-    window scale")
 	fmt.Fprintln(os.Stdout, "  m      mute")

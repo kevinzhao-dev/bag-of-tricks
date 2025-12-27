@@ -45,11 +45,13 @@ a     seek -%s relative
 d     seek +%s relative
 w     seek +%s relative
 s     seek -%s relative
+k     seek +%s relative
+j     seek -%s relative
 
-j script-message pp_prev_wrap
-k script-message pp_next_wrap
 q script-message pp_prev_wrap
 e script-message pp_next_wrap
+h script-message pp_prev_wrap
+l script-message pp_next_wrap
 ENTER script-message pp_next_wrap
 
 b script-message pp_browser_toggle
@@ -92,6 +94,8 @@ ESC quit
 		formatSeekSeconds(opts.SeekFineS),
 		formatSeekSeconds(opts.SeekShortS),
 		formatSeekSeconds(opts.SeekShortS),
+		formatSeekSeconds(opts.SeekLongS),
+		formatSeekSeconds(opts.SeekLongS),
 		formatSeekSeconds(opts.SeekLongS),
 		formatSeekSeconds(opts.SeekLongS),
 	)

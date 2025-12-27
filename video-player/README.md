@@ -72,9 +72,11 @@ make uninstall
 - `Z/C`: seek `±--seek-fine` seconds (same as arrows)
 - `↑/↓`: seek `±--seek-long` seconds (default 60)
 - `W/A/S/D`: seek (`A/D` = `--seek-short`, `W/S` = `--seek-long`)
+- `J/K`: seek (`--seek-long`, same as arrows)
 - `1`–`9`: jump to `10%`–`90%`
-- `j` / `k` (or `Enter`): previous / next video
 - `q` / `e`: previous / next video
+- `h` / `l`: previous / next video
+- `Enter`: next video
 - `x`: save snapshot to `./snapshots`
 - `+` / `-`: enlarge / shrink window
 - `m`: mute
