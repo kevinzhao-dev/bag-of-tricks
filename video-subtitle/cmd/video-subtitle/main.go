@@ -19,6 +19,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 )
 
 const (
@@ -350,6 +351,37 @@ func shouldFallbackToChunking(err error) bool {
 	return false
 }
 
+func informativeRuneCount(text string) int {
+	count := 0
+	for _, r := range text {
+		if unicode.IsLetter(r) || unicode.IsNumber(r) {
+			count++
+		}
+	}
+	return count
+}
+
+func isLowInfoText(text string, minChars int) bool {
+	trimmed := strings.TrimSpace(text)
+	if trimmed == "" {
+		return true
+	}
+	if minChars <= 0 {
+		return false
+	}
+	return informativeRuneCount(trimmed) < minChars
+}
+
+func countTranslatableSegments(segments []Segment, minChars int) int {
+	total := 0
+	for _, seg := range segments {
+		if !isLowInfoText(seg.Text, minChars) {
+			total++
+		}
+	}
+	return total
+}
+
 func formatSRTTimestamp(seconds float64) string {
 	millis := int64(seconds * 1000)
 	hours := millis / 3600000
@@ -585,6 +617,7 @@ func translateSegments(
 	segments []Segment,
 	sourceLang, targetLang, model string,
 	workers int,
+	minTranslateChars int,
 	logf func(string, ...any),
 ) ([]Segment, error) {
 	if workers <= 0 {
@@ -608,6 +641,9 @@ func translateSegments(
 			}
 			text := strings.TrimSpace(translated[idx].Text)
 			if text == "" {
+				continue
+			}
+			if isLowInfoText(text, minTranslateChars) {
 				continue
 			}
 			var output string
@@ -697,6 +733,7 @@ func run() int {
 	maxAudioMB := flag.Int("max-audio-mb", defaultMaxAudioMB, "Auto-chunk when extracted audio exceeds this size (MB)")
 	keepAudio := flag.Bool("keep-audio", false, "Keep the extracted audio file")
 	translateWorkers := flag.Int("translate-workers", defaultTranslateWorkers, "Number of concurrent translation workers")
+	minTranslateChars := flag.Int("min-translate-chars", 4, "Skip translation for segments with fewer than N letters/numbers (0 to disable)")
 	timeoutSeconds := flag.Int("timeout-seconds", defaultTimeoutSeconds, "HTTP timeout for OpenAI requests (seconds)")
 	flag.Parse()
 
@@ -815,13 +852,18 @@ func run() int {
 		if workers <= 0 {
 			workers = runtime.NumCPU()
 		}
-		logf("Translating segments (%d segments, %d workers)...", len(segments), workers)
-		translated, err := translateSegments(ctx, client, segments, *sourceLang, *targetLang, *translateModel, workers, logf)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Translation failed: %v\n", err)
-			return 1
+		translatable := countTranslatableSegments(segments, *minTranslateChars)
+		if translatable == 0 {
+			logf("Skipping translation: segments are low-info.")
+		} else {
+			logf("Translating segments (%d of %d segments, %d workers)...", translatable, len(segments), workers)
+			translated, err := translateSegments(ctx, client, segments, *sourceLang, *targetLang, *translateModel, workers, *minTranslateChars, logf)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Translation failed: %v\n", err)
+				return 1
+			}
+			segments = translated
 		}
-		segments = translated
 	}
 
 	logf("Writing SRT...")

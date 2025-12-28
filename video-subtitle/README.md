@@ -78,6 +78,12 @@ To speed up translation with concurrency:
 video-subtitle /path/to/video.mp4 --translate-workers 6
 ```
 
+To skip translation for short, low-info segments:
+
+```bash
+video-subtitle /path/to/video.mp4 --min-translate-chars 4
+```
+
 To extend the OpenAI request timeout:
 
 ```bash
