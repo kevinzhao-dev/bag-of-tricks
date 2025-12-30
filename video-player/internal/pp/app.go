@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -41,6 +42,10 @@ type App struct {
 	lastSamplePath string
 	lastSamplePos  float64
 	lastSavedAt    time.Time
+
+	clipActive    bool
+	clipStartPath string
+	clipStartPos  float64
 }
 
 func (a *App) Run() error {
@@ -115,6 +120,11 @@ func (a *App) handleRune(r rune, in *bufio.Reader) (quit bool, err error) {
 			return false, nil
 		}
 		return false, nil
+	case 'g', 'G':
+		if err := a.ToggleClip(context.Background()); err != nil {
+			a.osd(err.Error())
+		}
+		return false, nil
 	case '+', '=':
 		_ = a.bumpWindowScale(0.1)
 		return false, nil
@@ -179,7 +189,7 @@ func (a *App) handleRune(r rune, in *bufio.Reader) (quit bool, err error) {
 
 func (a *App) ShowHelpOnce() {
 	if a.helpShown {
-		a.osd("Keys: space pause, arrows/ZC fine, WASD short/long, j/k long, q/e/h/l prev/next, x snapshot, +/- scale, : commands, Esc quit")
+		a.osd("Keys: space pause, arrows/ZC fine, WASD short/long, j/k long, q/e/h/l prev/next, x snapshot, g clip, +/- scale, : commands, Esc quit")
 		return
 	}
 	a.helpShown = true
@@ -194,6 +204,7 @@ func (a *App) ShowHelpOnce() {
 	fmt.Fprintln(os.Stdout, "  q/e    prev/next video")
 	fmt.Fprintln(os.Stdout, "  h/l    prev/next video")
 	fmt.Fprintln(os.Stdout, "  x      snapshot (./snapshots)")
+	fmt.Fprintln(os.Stdout, "  g      clip toggle (./clips)")
 	fmt.Fprintln(os.Stdout, "  +/-    window scale")
 	fmt.Fprintln(os.Stdout, "  m      mute")
 	fmt.Fprintln(os.Stdout, "  [/ ]   speed -/+ 0.1x")
@@ -233,27 +244,126 @@ func (a *App) SaveSnapshot(ctx context.Context) error {
 	if err != nil || pos < 0 {
 		pos = 0
 	}
-	ms := int64(pos * 1000)
-	h := ms / 3600000
-	m := (ms / 60000) % 60
-	s := (ms / 1000) % 60
-	mmm := ms % 1000
-	name := fmt.Sprintf("%s_%02dh%02dm%02ds%03dms.jpg", base, h, m, s, mmm)
-	outPath := filepath.Join(dir, name)
-
-	// Avoid overwriting if the user takes multiple snapshots within the same millisecond.
-	for i := 2; i < 1000; i++ {
-		if _, err := os.Stat(outPath); err != nil {
-			break
-		}
-		outPath = filepath.Join(dir, fmt.Sprintf("%s_%02dh%02dm%02ds%03dms-%d.jpg", base, h, m, s, mmm, i))
-	}
+	stamp := formatTimestamp(pos)
+	outPath := uniquePath(filepath.Join(dir, fmt.Sprintf("%s_%s.jpg", base, stamp)))
 
 	if err := a.MPV.Command(ctx, "screenshot-to-file", outPath, "video"); err != nil {
 		return err
 	}
 	a.osd("Saved: " + filepath.Base(outPath))
 	return nil
+}
+
+func (a *App) ToggleClip(ctx context.Context) error {
+	if a.clipActive {
+		return a.finishClip(ctx)
+	}
+	return a.startClip(ctx)
+}
+
+func (a *App) startClip(ctx context.Context) error {
+	path, err := a.MPV.GetString(withTimeout(300*time.Millisecond), "path")
+	if err != nil || path == "" {
+		if a.Index >= 0 && a.Index < len(a.Playlist) {
+			path = a.Playlist[a.Index]
+		}
+	}
+	if path == "" {
+		return errors.New("Clip failed (no file)")
+	}
+	if strings.Contains(path, "://") {
+		return errors.New("Clip failed (not local)")
+	}
+	pos, err := a.MPV.GetFloat(withTimeout(300*time.Millisecond), "time-pos")
+	if err != nil || pos < 0 {
+		pos = 0
+	}
+	a.clipActive = true
+	a.clipStartPath = path
+	a.clipStartPos = pos
+	a.osd("Clip start")
+	return nil
+}
+
+func (a *App) finishClip(ctx context.Context) error {
+	startPath := a.clipStartPath
+	startPos := a.clipStartPos
+	a.clipActive = false
+	a.clipStartPath = ""
+	a.clipStartPos = 0
+
+	path, err := a.MPV.GetString(withTimeout(300*time.Millisecond), "path")
+	if err != nil || path == "" {
+		path = startPath
+	}
+	if path == "" || startPath == "" {
+		return errors.New("Clip failed (missing path)")
+	}
+	if path != startPath {
+		a.osd("Clip canceled (file changed)")
+		return nil
+	}
+
+	endPos, err := a.MPV.GetFloat(withTimeout(300*time.Millisecond), "time-pos")
+	if err != nil || endPos < 0 {
+		endPos = startPos
+	}
+	if endPos <= startPos+0.05 {
+		a.osd("Clip too short")
+		return nil
+	}
+
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		return errors.New("Clip failed (ffmpeg not found)")
+	}
+
+	wd, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	dir := filepath.Join(wd, "clips")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+
+	ext := filepath.Ext(path)
+	if ext == "" {
+		ext = ".mp4"
+	}
+	base := strings.TrimSuffix(filepath.Base(path), ext)
+	startStamp := formatTimestamp(startPos)
+	endStamp := formatTimestamp(endPos)
+	outPath := uniquePath(filepath.Join(dir, fmt.Sprintf("%s_%s-%s%s", base, startStamp, endStamp, ext)))
+
+	inPath := path
+	if !filepath.IsAbs(inPath) {
+		inPath = filepath.Join(wd, inPath)
+	}
+	startArg := formatSeconds(startPos)
+	durArg := formatSeconds(endPos - startPos)
+
+	a.osd("Saving clip...")
+	go a.renderClip(inPath, outPath, startArg, durArg)
+	return nil
+}
+
+func (a *App) renderClip(inPath, outPath, startArg, durArg string) {
+	cmd := exec.Command("ffmpeg",
+		"-hide_banner",
+		"-loglevel", "error",
+		"-ss", startArg,
+		"-t", durArg,
+		"-i", inPath,
+		"-c", "copy",
+		"-map", "0",
+		"-avoid_negative_ts", "make_zero",
+		outPath,
+	)
+	if err := cmd.Run(); err != nil {
+		a.osd("Clip failed")
+		return
+	}
+	a.osd("Saved: " + filepath.Base(outPath))
 }
 
 func withTimeout(d time.Duration) context.Context {
@@ -286,6 +396,34 @@ func formatSeconds(v float64) string {
 		return "0"
 	}
 	return s
+}
+
+func formatTimestamp(sec float64) string {
+	if sec < 0 {
+		sec = 0
+	}
+	ms := int64(sec*1000 + 0.5)
+	h := ms / 3600000
+	m := (ms / 60000) % 60
+	s := (ms / 1000) % 60
+	mmm := ms % 1000
+	return fmt.Sprintf("%02dh%02dm%02ds%03dms", h, m, s, mmm)
+}
+
+func uniquePath(path string) string {
+	if _, err := os.Stat(path); err != nil {
+		return path
+	}
+	dir := filepath.Dir(path)
+	ext := filepath.Ext(path)
+	base := strings.TrimSuffix(filepath.Base(path), ext)
+	for i := 2; i < 1000; i++ {
+		candidate := filepath.Join(dir, fmt.Sprintf("%s-%d%s", base, i, ext))
+		if _, err := os.Stat(candidate); err != nil {
+			return candidate
+		}
+	}
+	return path
 }
 
 func (a *App) bumpSpeed(delta float64) error {

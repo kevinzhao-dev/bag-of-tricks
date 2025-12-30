@@ -59,6 +59,8 @@ B script-message pp_browser_toggle
 
 x script-message pp_screenshot
 X script-message pp_screenshot
+g script-message pp_clip_toggle
+G script-message pp_clip_toggle
 
 BS  script-message pp_trash_current
 DEL script-message pp_trash_current
@@ -321,6 +323,106 @@ local function screenshot()
 end
 
 mp.register_script_message("pp_screenshot", screenshot)
+
+local clip_active = false
+local clip_start_pos = 0
+local clip_start_path = ""
+
+local function format_ts(sec)
+  if sec < 0 then sec = 0 end
+  local ms = math.floor(sec * 1000 + 0.5)
+  local h = math.floor(ms / 3600000)
+  local m = math.floor(ms / 60000) % 60
+  local s = math.floor(ms / 1000) % 60
+  local mmm = ms % 1000
+  return string.format("%02dh%02dm%02ds%03dms", h, m, s, mmm)
+end
+
+local function unique_clip_path(dir, base, start_tag, end_tag, ext)
+  local name = string.format("%s_%s-%s%s", base, start_tag, end_tag, ext)
+  local out = utils.join_path(dir, name)
+  if utils.file_info(out) == nil then return out, name end
+  for i = 2, 999 do
+    name = string.format("%s_%s-%s-%d%s", base, start_tag, end_tag, i, ext)
+    out = utils.join_path(dir, name)
+    if utils.file_info(out) == nil then return out, name end
+  end
+  return out, name
+end
+
+local function clip_toggle()
+  local p = mp.get_property("path") or ""
+  if p == "" then
+    mp.osd_message("Clip failed (no file)", 1.5)
+    return
+  end
+  if not is_probably_local_file(p) then
+    mp.osd_message("Clip failed (not local)", 1.5)
+    return
+  end
+  local pos = mp.get_property_number("time-pos", 0) or 0
+  if pos < 0 then pos = 0 end
+
+  if not clip_active then
+    clip_active = true
+    clip_start_pos = pos
+    clip_start_path = p
+    mp.osd_message("Clip start", 1.5)
+    return
+  end
+
+  clip_active = false
+  if p ~= clip_start_path then
+    mp.osd_message("Clip canceled (file changed)", 1.5)
+    return
+  end
+  if pos <= clip_start_pos + 0.05 then
+    mp.osd_message("Clip too short", 1.5)
+    return
+  end
+
+  local wd = mp.get_property("working-directory")
+  if wd == nil or wd == "" then
+    mp.osd_message("Clip failed (no wd)", 1.5)
+    return
+  end
+  local dir = utils.join_path(wd, "clips")
+  mkdir_p(dir)
+
+  local base = basename(p)
+  local ext = string.match(base, "%.[^%.]+$") or ".mp4"
+  base = string.gsub(base, "%.[^%.]+$", "")
+  if base == "" then base = "clip" end
+
+  local start_tag = format_ts(clip_start_pos)
+  local end_tag = format_ts(pos)
+  local out, name = unique_clip_path(dir, base, start_tag, end_tag, ext)
+  local input = resolve_local_path(p)
+
+  local args = {
+    "ffmpeg",
+    "-hide_banner",
+    "-loglevel", "error",
+    "-ss", tostring(clip_start_pos),
+    "-t", tostring(pos - clip_start_pos),
+    "-i", input,
+    "-c", "copy",
+    "-map", "0",
+    "-avoid_negative_ts", "make_zero",
+    out,
+  }
+
+  mp.osd_message("Saving clip...", 1.5)
+  mp.command_native_async({ name = "subprocess", args = args }, function(success, res, err)
+    if not success or (res and res.status and res.status ~= 0) or err ~= nil then
+      mp.osd_message("Clip failed", 2.0)
+      return
+    end
+    mp.osd_message("Saved: " .. name, 1.5)
+  end)
+end
+
+mp.register_script_message("pp_clip_toggle", clip_toggle)
 
 local function applescript_escape(s)
   s = string.gsub(s, "\\", "\\\\")

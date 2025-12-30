@@ -78,6 +78,7 @@ make uninstall
 - `h` / `l`: previous / next video
 - `Enter`: next video
 - `x`: save snapshot to `./snapshots`
+- `g`: clip toggle to `./clips` (requires `ffmpeg`)
 - `+` / `-`: enlarge / shrink window
 - `m`: mute
 - `[` / `]`: speed `- / +` 0.1x (clamped to 0.1x–3.0x)
