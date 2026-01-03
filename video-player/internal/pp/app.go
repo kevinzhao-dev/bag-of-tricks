@@ -46,6 +46,10 @@ type App struct {
 	clipActive    bool
 	clipStartPath string
 	clipStartPos  float64
+
+	trimActive    bool
+	trimStartPath string
+	trimStartPos  float64
 }
 
 func (a *App) Run() error {
@@ -125,6 +129,11 @@ func (a *App) handleRune(r rune, in *bufio.Reader) (quit bool, err error) {
 			a.osd(err.Error())
 		}
 		return false, nil
+	case 't', 'T':
+		if err := a.ToggleTrim(context.Background()); err != nil {
+			a.osd(err.Error())
+		}
+		return false, nil
 	case '+', '=':
 		_ = a.bumpWindowScale(0.1)
 		return false, nil
@@ -189,7 +198,7 @@ func (a *App) handleRune(r rune, in *bufio.Reader) (quit bool, err error) {
 
 func (a *App) ShowHelpOnce() {
 	if a.helpShown {
-		a.osd("Keys: space pause, arrows/ZC fine, WASD short/long, j/k long, q/e/h/l prev/next, x snapshot, g clip, +/- scale, : commands, Esc quit")
+		a.osd("Keys: space pause, arrows/ZC fine, WASD short/long, j/k long, q/e/h/l prev/next, x snapshot, g clip, t trim, +/- scale, : commands, Esc quit")
 		return
 	}
 	a.helpShown = true
@@ -205,6 +214,7 @@ func (a *App) ShowHelpOnce() {
 	fmt.Fprintln(os.Stdout, "  h/l    prev/next video")
 	fmt.Fprintln(os.Stdout, "  x      snapshot (./snapshots)")
 	fmt.Fprintln(os.Stdout, "  g      clip toggle (./clips)")
+	fmt.Fprintln(os.Stdout, "  t      trim toggle (./clips)")
 	fmt.Fprintln(os.Stdout, "  +/-    window scale")
 	fmt.Fprintln(os.Stdout, "  m      mute")
 	fmt.Fprintln(os.Stdout, "  [/ ]   speed -/+ 0.1x")
@@ -261,6 +271,13 @@ func (a *App) ToggleClip(ctx context.Context) error {
 	return a.startClip(ctx)
 }
 
+func (a *App) ToggleTrim(ctx context.Context) error {
+	if a.trimActive {
+		return a.finishTrim(ctx)
+	}
+	return a.startTrim(ctx)
+}
+
 func (a *App) startClip(ctx context.Context) error {
 	path, err := a.MPV.GetString(withTimeout(300*time.Millisecond), "path")
 	if err != nil || path == "" {
@@ -313,8 +330,74 @@ func (a *App) finishClip(ctx context.Context) error {
 		return nil
 	}
 
+	return a.exportSegment(startPath, startPos, endPos, "Clip")
+}
+
+func (a *App) startTrim(ctx context.Context) error {
+	path, err := a.MPV.GetString(withTimeout(300*time.Millisecond), "path")
+	if err != nil || path == "" {
+		if a.Index >= 0 && a.Index < len(a.Playlist) {
+			path = a.Playlist[a.Index]
+		}
+	}
+	if path == "" {
+		return errors.New("Trim failed (no file)")
+	}
+	if strings.Contains(path, "://") {
+		return errors.New("Trim failed (not local)")
+	}
+	pos, err := a.MPV.GetFloat(withTimeout(300*time.Millisecond), "time-pos")
+	if err != nil || pos < 0 {
+		pos = 0
+	}
+	a.trimActive = true
+	a.trimStartPath = path
+	a.trimStartPos = pos
+	a.osd("Trim start")
+	return nil
+}
+
+func (a *App) finishTrim(ctx context.Context) error {
+	startPath := a.trimStartPath
+	startPos := a.trimStartPos
+
+	path, err := a.MPV.GetString(withTimeout(300*time.Millisecond), "path")
+	if err != nil || path == "" {
+		path = startPath
+	}
+	if path == "" || startPath == "" {
+		a.trimActive = false
+		a.trimStartPath = ""
+		a.trimStartPos = 0
+		return errors.New("Trim failed (missing path)")
+	}
+	if path != startPath {
+		a.trimActive = false
+		a.trimStartPath = ""
+		a.trimStartPos = 0
+		return errors.New("Trim canceled (file changed)")
+	}
+
+	endPos, err := a.MPV.GetFloat(withTimeout(300*time.Millisecond), "time-pos")
+	if err != nil || endPos < 0 {
+		endPos = startPos
+	}
+	if endPos < startPos {
+		return errors.New("Trim invalid (end before start)")
+	}
+	if endPos <= startPos+0.05 {
+		return errors.New("Trim too short")
+	}
+
+	a.trimActive = false
+	a.trimStartPath = ""
+	a.trimStartPos = 0
+	return a.exportSegment(startPath, startPos, endPos, "Trim")
+}
+
+func (a *App) exportSegment(path string, startPos, endPos float64, label string) error {
 	if _, err := exec.LookPath("ffmpeg"); err != nil {
-		return errors.New("Clip failed (ffmpeg not found)")
+		return fmt.Errorf("%s failed (ffmpeg not found)", label)
 	}
 
 	wd, err := os.Getwd()
@@ -342,12 +425,12 @@ func (a *App) finishClip(ctx context.Context) error {
 	startArg := formatSeconds(startPos)
 	durArg := formatSeconds(endPos - startPos)
 
-	a.osd("Saving clip...")
-	go a.renderClip(inPath, outPath, startArg, durArg)
+	a.osd("Saving " + strings.ToLower(label) + "...")
+	go a.renderClip(inPath, outPath, startArg, durArg, label)
 	return nil
 }
 
-func (a *App) renderClip(inPath, outPath, startArg, durArg string) {
+func (a *App) renderClip(inPath, outPath, startArg, durArg, label string) {
 	cmd := exec.Command("ffmpeg",
 		"-hide_banner",
 		"-loglevel", "error",
@@ -360,7 +443,7 @@ func (a *App) renderClip(inPath, outPath, startArg, durArg string) {
 		outPath,
 	)
 	if err := cmd.Run(); err != nil {
-		a.osd("Clip failed")
+		a.osd(label + " failed")
 		return
 	}
 	a.osd("Saved: " + filepath.Base(outPath))

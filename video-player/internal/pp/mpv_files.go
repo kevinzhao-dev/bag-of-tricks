@@ -61,6 +61,8 @@ x script-message pp_screenshot
 X script-message pp_screenshot
 g script-message pp_clip_toggle
 G script-message pp_clip_toggle
+t script-message pp_trim_toggle
+T script-message pp_trim_toggle
 
 BS  script-message pp_trash_current
 DEL script-message pp_trash_current
@@ -423,6 +425,90 @@ local function clip_toggle()
 end
 
 mp.register_script_message("pp_clip_toggle", clip_toggle)
+
+local trim_active = false
+local trim_start_pos = 0
+local trim_start_path = ""
+
+local function trim_toggle()
+  local p = mp.get_property("path") or ""
+  if p == "" then
+    mp.osd_message("Trim failed (no file)", 1.5)
+    return
+  end
+  if not is_probably_local_file(p) then
+    mp.osd_message("Trim failed (not local)", 1.5)
+    return
+  end
+  local pos = mp.get_property_number("time-pos", 0) or 0
+  if pos < 0 then pos = 0 end
+
+  if not trim_active then
+    trim_active = true
+    trim_start_pos = pos
+    trim_start_path = p
+    mp.osd_message("Trim start", 1.5)
+    return
+  end
+
+  if p ~= trim_start_path then
+    trim_active = false
+    mp.osd_message("Trim canceled (file changed)", 1.5)
+    return
+  end
+  if pos < trim_start_pos then
+    mp.osd_message("Trim invalid (end before start)", 1.5)
+    return
+  end
+  if pos <= trim_start_pos + 0.05 then
+    mp.osd_message("Trim too short", 1.5)
+    return
+  end
+
+  trim_active = false
+
+  local wd = mp.get_property("working-directory")
+  if wd == nil or wd == "" then
+    mp.osd_message("Trim failed (no wd)", 1.5)
+    return
+  end
+  local dir = utils.join_path(wd, "clips")
+  mkdir_p(dir)
+
+  local base = basename(p)
+  local ext = string.match(base, "%.[^%.]+$") or ".mp4"
+  base = string.gsub(base, "%.[^%.]+$", "")
+  if base == "" then base = "trim" end
+
+  local start_tag = format_ts(trim_start_pos)
+  local end_tag = format_ts(pos)
+  local out, name = unique_clip_path(dir, base, start_tag, end_tag, ext)
+  local input = resolve_local_path(p)
+
+  local args = {
+    "ffmpeg",
+    "-hide_banner",
+    "-loglevel", "error",
+    "-ss", tostring(trim_start_pos),
+    "-t", tostring(pos - trim_start_pos),
+    "-i", input,
+    "-c", "copy",
+    "-map", "0",
+    "-avoid_negative_ts", "make_zero",
+    out,
+  }
+
+  mp.osd_message("Saving trim...", 1.5)
+  mp.command_native_async({ name = "subprocess", args = args }, function(success, res, err)
+    if not success or (res and res.status and res.status ~= 0) or err ~= nil then
+      mp.osd_message("Trim failed", 2.0)
+      return
+    end
+    mp.osd_message("Saved: " .. name, 1.5)
+  end)
+end
+
+mp.register_script_message("pp_trim_toggle", trim_toggle)
 
 local function applescript_escape(s)
   s = string.gsub(s, "\\", "\\\\")
