@@ -457,16 +457,19 @@ func extractAudio(inputPath, outputPath string) error {
 	)
 }
 
-func extractAudioSegment(inputPath, outputPath string, startSeconds, durationSeconds float64) error {
-	return runCommand(
-		"ffmpeg",
-		"-y",
-		"-ss",
-		fmt.Sprintf("%.3f", startSeconds),
+func extractAudioSegment(inputPath, outputPath string, startSeconds, durationSeconds float64, accurate bool) error {
+	args := []string{"-y"}
+	if !accurate {
+		args = append(args, "-ss", fmt.Sprintf("%.3f", startSeconds))
+	}
+	args = append(args, "-i", inputPath)
+	if accurate {
+		args = append(args, "-ss", fmt.Sprintf("%.3f", startSeconds))
+	}
+	args = append(
+		args,
 		"-t",
 		fmt.Sprintf("%.3f", durationSeconds),
-		"-i",
-		inputPath,
 		"-vn",
 		"-ac",
 		"1",
@@ -476,6 +479,7 @@ func extractAudioSegment(inputPath, outputPath string, startSeconds, durationSec
 		"wav",
 		outputPath,
 	)
+	return runCommand("ffmpeg", args...)
 }
 
 func audioDuration(path string) (float64, error) {
@@ -570,6 +574,7 @@ func transcribeInChunks(
 	client *openAIClient,
 	audioPath, model, language string,
 	chunkSeconds int,
+	accurate bool,
 	logf func(string, ...any),
 ) ([]Segment, error) {
 	duration, err := audioDuration(audioPath)
@@ -593,7 +598,7 @@ func transcribeInChunks(
 		}
 		chunkPath := filepath.Join(baseDir, fmt.Sprintf("chunk_%04d.wav", chunkIndex))
 		logf("Transcribing chunk %d at %.1fs...", chunkIndex+1, current)
-		if err := extractAudioSegment(audioPath, chunkPath, current, segmentDuration); err != nil {
+		if err := extractAudioSegment(audioPath, chunkPath, current, segmentDuration, accurate); err != nil {
 			return nil, err
 		}
 		chunkSegments, err := transcribeWithRetry(ctx, client, chunkPath, model, language, logf)
@@ -735,6 +740,7 @@ func run() int {
 	translateWorkers := flag.Int("translate-workers", defaultTranslateWorkers, "Number of concurrent translation workers")
 	minTranslateChars := flag.Int("min-translate-chars", 4, "Skip translation for segments with fewer than N letters/numbers (0 to disable)")
 	timeoutSeconds := flag.Int("timeout-seconds", defaultTimeoutSeconds, "HTTP timeout for OpenAI requests (seconds)")
+	highAccuracy := flag.Bool("high-accuracy", false, "Use higher-accuracy transcription settings (slower)")
 	flag.Parse()
 
 	if flag.NArg() < 1 {
@@ -804,6 +810,10 @@ func run() int {
 		return 1
 	}
 
+	if *highAccuracy {
+		*minTranslateChars = 0
+	}
+
 	maxAudioBytes := int64(*maxAudioMB) * 1024 * 1024
 	useChunking := *chunkSeconds > 0 || audioSizeBytes > maxAudioBytes
 	chunkSecondsValue := *chunkSeconds
@@ -828,7 +838,7 @@ func run() int {
 	logf("Transcribing with Whisper...")
 	segments, err := func() ([]Segment, error) {
 		if useChunking {
-			return transcribeInChunks(ctx, client, audioPath, *whisperModel, *sourceLang, chunkSecondsValue, logf)
+			return transcribeInChunks(ctx, client, audioPath, *whisperModel, *sourceLang, chunkSecondsValue, *highAccuracy, logf)
 		}
 		return transcribeWithRetry(ctx, client, audioPath, *whisperModel, *sourceLang, logf)
 	}()
@@ -839,7 +849,7 @@ func run() int {
 				return 1
 			}
 			logf("Whisper request failed; retrying in chunks. Chunk size: %ds.", defaultChunkSeconds)
-			segments, err = transcribeInChunks(ctx, client, audioPath, *whisperModel, *sourceLang, defaultChunkSeconds, logf)
+			segments, err = transcribeInChunks(ctx, client, audioPath, *whisperModel, *sourceLang, defaultChunkSeconds, *highAccuracy, logf)
 		}
 	}
 	if err != nil {

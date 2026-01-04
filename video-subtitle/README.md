@@ -84,6 +84,12 @@ To skip translation for short, low-info segments:
 video-subtitle /path/to/video.mp4 --min-translate-chars 4
 ```
 
+To use a higher-accuracy mode (slower, uses accurate chunk extraction and translates all segments):
+
+```bash
+video-subtitle /path/to/video.mp4 --high-accuracy
+```
+
 To extend the OpenAI request timeout:
 
 ```bash
