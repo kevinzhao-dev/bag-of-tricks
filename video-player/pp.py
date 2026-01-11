@@ -20,12 +20,13 @@ from typing import List, Dict, Optional
 __version__ = "0.1.0"
 
 class VideoPlayer:
-    def __init__(self, path: str, seek_short: int = 10, seek_long: int = 60, throttle_delay: float = 0.2, continuous: bool = False):
+    def __init__(self, path: str, seek_short: int = 10, seek_long: int = 60, throttle_delay: float = 0.2, continuous: bool = False, latest: bool = False):
         self.path = Path(path)
         self.seek_short = seek_short  # seconds
         self.seek_long = seek_long    # seconds
         self.throttle_delay = throttle_delay  # seconds
         self.continuous = continuous  # auto-advance to next video
+        self.latest = latest  # sort by modification time
         self.video_files = []
         self.current_index = 0
         self.is_playing = True

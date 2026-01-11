@@ -27,6 +27,7 @@ func main() {
 		noResume    = flag.Bool("no-resume", false, "disable resume (even within this session)")
 		persist     = flag.Bool("persist-resume", false, "persist resume timestamps across runs (writes to ~/.pp_timestamps_go.json)")
 		mpvPathFlag = flag.String("mpv", "mpv", "mpv executable path")
+		latest      = flag.Bool("latest", false, "order video list by date added (most recent first)")
 	)
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "pp (Go) - keyboard-first video player controller (mpv)\n\n")
@@ -53,7 +54,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	playlist, startIndex, err := pp.BuildPlaylist(path)
+	playlist, startIndex, err := pp.BuildPlaylist(path, *latest)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(1)

@@ -19,7 +19,7 @@ var videoExts = map[string]bool{
 	".m4v":  true,
 }
 
-func BuildPlaylist(path string) (files []string, startIndex int, err error) {
+func BuildPlaylist(path string, latest bool) (files []string, startIndex int, err error) {
 	path, err = filepath.Abs(path)
 	if err != nil {
 		return nil, 0, err
@@ -50,7 +50,19 @@ func BuildPlaylist(path string) (files []string, startIndex int, err error) {
 		}
 		files = append(files, filepath.Join(dir, e.Name()))
 	}
-	sort.Strings(files)
+	if latest {
+		// Sort by modification time, most recent first
+		sort.Slice(files, func(i, j int) bool {
+			infoI, errI := os.Stat(files[i])
+			infoJ, errJ := os.Stat(files[j])
+			if errI != nil || errJ != nil {
+				return files[i] < files[j]
+			}
+			return infoI.ModTime().After(infoJ.ModTime())
+		})
+	} else {
+		sort.Strings(files)
+	}
 	if len(files) == 0 {
 		return nil, 0, fmt.Errorf("no video files found in %s", dir)
 	}
