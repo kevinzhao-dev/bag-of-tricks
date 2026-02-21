@@ -52,6 +52,11 @@ Thumbs.db
 **/.venv/
 **/venv/
 
+# Zig
+**/zig-cache/
+**/zig-out/
+**/.zig-cache/
+
 # Logs
 **/*.log
 
