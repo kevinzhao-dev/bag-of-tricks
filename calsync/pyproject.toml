@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "calsync"
+version = "0.1.0"
+description = "Apple Calendar → Google Calendar one-way sync CLI"
+requires-python = ">=3.11"
+dependencies = [
+    "click>=8.0",
+    "maccal>=1.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0"]
+
+[project.scripts]
+calsync = "calsync.cli:cli"
+
+[tool.setuptools.packages.find]
+where = ["src"]
