@@ -1,0 +1,1020 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Video Updates Dashboard</title>
+    <style>
+      :root {
+        --bg: #f3efe6;
+        --bg-2: #e2dccf;
+        --panel: #fffaf0;
+        --ink: #201f1a;
+        --muted: #6d665a;
+        --accent: #2d6b5a;
+        --accent-2: #cf7f3a;
+        --shadow: 0 10px 30px rgba(26, 24, 20, 0.12);
+        --stroke: rgba(32, 31, 26, 0.1);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: "Trebuchet MS", "Lucida Grande", "Verdana", sans-serif;
+        color: var(--ink);
+        background: radial-gradient(circle at top, #ffffff, var(--bg) 45%) fixed,
+          linear-gradient(120deg, var(--bg-2), var(--bg)) fixed;
+      }
+
+      header {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+
+      h1 {
+        margin: 0;
+        font-family: "Palatino Linotype", "Book Antiqua", Palatino, serif;
+        font-size: clamp(1.8rem, 2vw + 1.4rem, 2.8rem);
+        letter-spacing: 0.02em;
+      }
+
+      main {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 32px 24px 48px;
+      }
+
+      .subtitle {
+        margin: 6px 0 0;
+        color: var(--muted);
+        font-size: 0.95rem;
+      }
+
+      .controls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: center;
+        background: var(--panel);
+        padding: 12px 16px;
+        border-radius: 14px;
+        box-shadow: var(--shadow);
+        border: 1px solid var(--stroke);
+      }
+
+      .controls label {
+        font-size: 0.85rem;
+        color: var(--muted);
+      }
+
+      input[type="number"] {
+        width: 90px;
+        padding: 8px 10px;
+        border-radius: 10px;
+        border: 1px solid var(--stroke);
+        background: #fff;
+        font-size: 0.95rem;
+      }
+
+      input[type="date"] {
+        padding: 7px 10px;
+        border-radius: 10px;
+        border: 1px solid var(--stroke);
+        background: #fff;
+        font-size: 0.9rem;
+      }
+
+      button,
+      .btn {
+        border: none;
+        border-radius: 999px;
+        padding: 10px 16px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+      }
+
+      button:hover,
+      .btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 16px rgba(32, 31, 26, 0.16);
+      }
+
+      .btn-primary {
+        background: var(--accent);
+        color: #fff;
+      }
+
+      .btn-secondary {
+        background: #fff;
+        border: 1px solid var(--stroke);
+        color: var(--ink);
+      }
+
+      .btn-warning {
+        background: var(--accent-2);
+        color: #fff;
+      }
+
+      .btn-disabled {
+        background: #c9b39d;
+        color: #fff;
+        cursor: not-allowed;
+        box-shadow: none;
+        transform: none;
+      }
+
+      .btn-disabled:hover {
+        transform: none;
+        box-shadow: none;
+      }
+
+      .status {
+        margin: 20px 0;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 12px;
+      }
+
+      .status-card {
+        background: var(--panel);
+        border-radius: 16px;
+        padding: 14px 16px;
+        border: 1px solid var(--stroke);
+        box-shadow: var(--shadow);
+      }
+
+      .status-label {
+        font-size: 0.8rem;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+
+      .status-value {
+        font-size: 1.05rem;
+        margin-top: 6px;
+      }
+
+      .stats-panel {
+        margin: 20px 0;
+        background: var(--panel);
+        border-radius: 18px;
+        padding: 16px;
+        border: 1px solid var(--stroke);
+        box-shadow: var(--shadow);
+      }
+
+      .stats-header {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        margin-bottom: 12px;
+      }
+
+      .stats-title {
+        margin: 0;
+        font-size: 1.1rem;
+      }
+
+      .stats-sub {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.85rem;
+      }
+
+      .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 10px;
+      }
+
+      .stat-card {
+        padding: 12px;
+        border-radius: 14px;
+        background: #f9f2e6;
+        border: 1px solid rgba(32, 31, 26, 0.08);
+      }
+
+      .stat-label {
+        font-size: 0.75rem;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+
+      .stat-value {
+        margin-top: 6px;
+        font-size: 1.05rem;
+        font-weight: 700;
+      }
+
+      .table-panel {
+        margin: 20px 0 30px;
+        background: var(--panel);
+        border-radius: 18px;
+        padding: 16px;
+        border: 1px solid var(--stroke);
+        box-shadow: var(--shadow);
+      }
+
+      .table-controls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+        margin-bottom: 12px;
+      }
+
+      .table-controls label {
+        font-size: 0.8rem;
+        color: var(--muted);
+      }
+
+      .table-wrap {
+        width: 100%;
+        overflow-x: auto;
+        border-radius: 12px;
+        border: 1px solid rgba(32, 31, 26, 0.08);
+      }
+
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        min-width: 720px;
+        background: #fffdf7;
+      }
+
+      th,
+      td {
+        padding: 10px 12px;
+        text-align: left;
+        border-bottom: 1px solid rgba(32, 31, 26, 0.08);
+        font-size: 0.9rem;
+        vertical-align: top;
+      }
+
+      th {
+        background: #efe4d1;
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+
+      td a {
+        color: var(--accent);
+        text-decoration: none;
+      }
+
+      td a:hover {
+        text-decoration: underline;
+      }
+
+      .table-muted {
+        color: var(--muted);
+        font-size: 0.85rem;
+      }
+
+      .table-empty {
+        padding: 16px 0 4px;
+        text-align: center;
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+
+      .histogram {
+        margin: 20px 0 26px;
+        background: var(--panel);
+        border-radius: 18px;
+        padding: 16px;
+        border: 1px solid var(--stroke);
+        box-shadow: var(--shadow);
+      }
+
+      .histogram-head {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 12px;
+      }
+
+      .histogram-title {
+        margin: 0;
+        font-size: 1.1rem;
+      }
+
+      .histogram-sub {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.85rem;
+      }
+
+      .histogram-bars {
+        display: flex;
+        align-items: flex-end;
+        gap: 6px;
+        height: 160px;
+        padding: 8px 4px 4px;
+        border-radius: 12px;
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.6), transparent);
+      }
+
+      .bar {
+        flex: 1;
+        min-width: 6px;
+        background: linear-gradient(180deg, #2d6b5a, #8ebea4);
+        border-radius: 6px 6px 4px 4px;
+        position: relative;
+        transition: height 0.2s ease;
+      }
+
+      .bar.is-empty {
+        background: rgba(45, 107, 90, 0.12);
+      }
+
+      .bar-count {
+        position: absolute;
+        top: -18px;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 0.7rem;
+        color: var(--muted);
+      }
+
+      .histogram-empty {
+        padding: 20px 0 6px;
+        text-align: center;
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+        gap: 20px;
+      }
+
+      .card {
+        background: var(--panel);
+        border-radius: 18px;
+        overflow: hidden;
+        border: 1px solid var(--stroke);
+        box-shadow: var(--shadow);
+        display: flex;
+        flex-direction: column;
+        min-height: 100%;
+        transition: transform 0.2s ease, opacity 0.2s ease;
+      }
+
+      .card.is-removed {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+
+      .cover {
+        position: relative;
+        width: 100%;
+        aspect-ratio: 16 / 9;
+        background: linear-gradient(135deg, #e5d8c0, #c8d6d0);
+      }
+
+      .cover img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+      }
+
+      .card-body {
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        flex: 1;
+      }
+
+      .card-title {
+        font-size: 1rem;
+        font-weight: 700;
+      }
+
+      .card-title a {
+        color: inherit;
+        text-decoration: none;
+      }
+
+      .card-title a:hover {
+        text-decoration: underline;
+      }
+
+      .card-meta {
+        font-size: 0.85rem;
+        color: var(--muted);
+      }
+
+      .card-actions {
+        margin-top: auto;
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      .empty {
+        margin-top: 30px;
+        padding: 24px;
+        text-align: center;
+        border-radius: 16px;
+        background: var(--panel);
+        border: 1px dashed var(--stroke);
+        color: var(--muted);
+      }
+
+      @media (max-width: 720px) {
+        main {
+          padding: 24px 16px 40px;
+        }
+
+        .controls {
+          width: 100%;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div>
+          <h1>Video Updates</h1>
+          <p class="subtitle">
+            Showing new posts since <span id="startDate">-</span> | <span id="clock">--:--:--</span>
+          </p>
+        </div>
+        <div class="controls">
+          <button class="btn btn-primary" id="refreshBtn">Fetch now</button>
+          <button class="btn btn-secondary" id="toggleStats">Show stats</button>
+          <button class="btn btn-secondary" id="toggleTable">Show all videos</button>
+          <button class="btn btn-secondary" id="viewAllBtn">Viewed all</button>
+          <label for="intervalInput">Interval (min)</label>
+          <input id="intervalInput" type="number" min="10" max="360" />
+          <button class="btn btn-secondary" id="saveInterval">Update</button>
+        </div>
+      </header>
+
+      <section class="status">
+        <div class="status-card">
+          <div class="status-label">Last checked</div>
+          <div class="status-value" id="lastChecked">-</div>
+        </div>
+        <div class="status-card">
+          <div class="status-label">New items</div>
+          <div class="status-value" id="itemCount">0</div>
+        </div>
+        <div class="status-card">
+          <div class="status-label">Auto interval</div>
+          <div class="status-value" id="intervalDisplay">-</div>
+        </div>
+      </section>
+
+      <section class="stats-panel" id="statsPanel" hidden>
+        <div class="stats-header">
+          <h2 class="stats-title">Summary insights</h2>
+          <p class="stats-sub">Since <span id="statsStartDate">-</span></p>
+        </div>
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-label">Total updates</div>
+            <div class="stat-value" id="statTotal">0</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Unseen items</div>
+            <div class="stat-value" id="statUnseen">0</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Viewed</div>
+            <div class="stat-value" id="statViewed">0</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Downloaded</div>
+            <div class="stat-value" id="statDownloaded">0</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Average per day</div>
+            <div class="stat-value" id="statAverage">0</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Download rate</div>
+            <div class="stat-value" id="statRate">0%</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Most active day</div>
+            <div class="stat-value" id="statPeak">-</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Last download</div>
+            <div class="stat-value" id="statLastDownload">-</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="table-panel" id="tablePanel" hidden>
+        <div class="stats-header">
+          <h2 class="stats-title">All videos</h2>
+          <p class="stats-sub">Includes viewed and downloaded items</p>
+        </div>
+        <div class="table-controls">
+          <label for="tableFrom">From</label>
+          <input id="tableFrom" type="date" />
+          <label for="tableTo">To</label>
+          <input id="tableTo" type="date" />
+          <button class="btn btn-secondary" id="tableApply" type="button">Apply</button>
+          <button class="btn btn-secondary" id="tableClear" type="button">Clear</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Title</th>
+                <th>Date</th>
+                <th>Post URL</th>
+                <th>Download</th>
+                <th>Viewed</th>
+              </tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+          </table>
+        </div>
+        <div class="table-empty" id="tableEmpty" hidden>No videos yet.</div>
+      </section>
+
+      <section class="histogram">
+        <div class="histogram-head">
+          <h2 class="histogram-title">Daily updates</h2>
+          <p class="histogram-sub">Rolling 30 day window (newest at left)</p>
+        </div>
+        <div class="histogram-bars" id="histogram"></div>
+        <div class="histogram-empty" id="histogramEmpty" hidden>No updates in this window.</div>
+      </section>
+
+      <section class="grid" id="cards"></section>
+      <section class="empty" id="emptyState" hidden>No new videos yet.</section>
+    </main>
+
+    <script>
+      const startDateEl = document.getElementById("startDate");
+      const clockEl = document.getElementById("clock");
+      const lastCheckedEl = document.getElementById("lastChecked");
+      const itemCountEl = document.getElementById("itemCount");
+      const intervalDisplayEl = document.getElementById("intervalDisplay");
+      const intervalInput = document.getElementById("intervalInput");
+      const cardsEl = document.getElementById("cards");
+      const emptyStateEl = document.getElementById("emptyState");
+      const histogramEl = document.getElementById("histogram");
+      const histogramEmptyEl = document.getElementById("histogramEmpty");
+      const refreshBtn = document.getElementById("refreshBtn");
+      const toggleStatsBtn = document.getElementById("toggleStats");
+      const toggleTableBtn = document.getElementById("toggleTable");
+      const saveIntervalBtn = document.getElementById("saveInterval");
+      const viewAllBtn = document.getElementById("viewAllBtn");
+      const statsPanelEl = document.getElementById("statsPanel");
+      const statsStartDateEl = document.getElementById("statsStartDate");
+      const statTotalEl = document.getElementById("statTotal");
+      const statUnseenEl = document.getElementById("statUnseen");
+      const statViewedEl = document.getElementById("statViewed");
+      const statDownloadedEl = document.getElementById("statDownloaded");
+      const statAverageEl = document.getElementById("statAverage");
+      const statRateEl = document.getElementById("statRate");
+      const statPeakEl = document.getElementById("statPeak");
+      const statLastDownloadEl = document.getElementById("statLastDownload");
+      const tablePanelEl = document.getElementById("tablePanel");
+      const tableBodyEl = document.getElementById("tableBody");
+      const tableEmptyEl = document.getElementById("tableEmpty");
+      const tableFromEl = document.getElementById("tableFrom");
+      const tableToEl = document.getElementById("tableTo");
+      const tableApplyBtn = document.getElementById("tableApply");
+      const tableClearBtn = document.getElementById("tableClear");
+      let allVideos = [];
+
+      async function fetchJson(url, options) {
+        const response = await fetch(url, options);
+        if (!response.ok) {
+          throw new Error("Request failed");
+        }
+        return response.json();
+      }
+
+      async function loadSettings() {
+        const settings = await fetchJson("/api/settings");
+        startDateEl.textContent = settings.start_date || "-";
+        lastCheckedEl.textContent = settings.last_checked || "-";
+        intervalDisplayEl.textContent = `${settings.interval_minutes || "-"} min`;
+        intervalInput.value = settings.interval_minutes || 30;
+      }
+
+      function clearCards() {
+        cardsEl.innerHTML = "";
+      }
+
+      function renderEmpty(show) {
+        emptyStateEl.hidden = !show;
+      }
+
+      function createCard(item) {
+        const card = document.createElement("article");
+        card.className = "card";
+
+        const cover = document.createElement("div");
+        cover.className = "cover";
+        if (item.cover_url) {
+          const img = document.createElement("img");
+          img.src = item.cover_url;
+          img.alt = item.title || "cover";
+          img.loading = "lazy";
+          cover.appendChild(img);
+        }
+        card.appendChild(cover);
+
+        const body = document.createElement("div");
+        body.className = "card-body";
+
+        const titleText = item.title || "Untitled";
+        const title = document.createElement("div");
+        title.className = "card-title";
+        if (item.url) {
+          const link = document.createElement("a");
+          link.href = item.url;
+          link.target = "_blank";
+          link.rel = "noopener";
+          link.textContent = titleText;
+          title.appendChild(link);
+        } else {
+          title.textContent = titleText;
+        }
+
+        const meta = document.createElement("div");
+        meta.className = "card-meta";
+        const posted = item.post_date || item.discovered_at?.slice(0, 10) || "-";
+        meta.textContent = `Post date: ${posted}`;
+
+        const actions = document.createElement("div");
+        actions.className = "card-actions";
+
+        const viewedBtn = document.createElement("button");
+        viewedBtn.className = "btn btn-secondary";
+        viewedBtn.textContent = "Viewed";
+        viewedBtn.addEventListener("click", async () => {
+          viewedBtn.disabled = true;
+          await fetchJson("/api/view", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: item.id }),
+          });
+          removeCard(card);
+        });
+
+        const downloadBtn = document.createElement("button");
+        downloadBtn.className = "btn btn-warning";
+        downloadBtn.type = "button";
+        downloadBtn.textContent = "Download";
+        const rapidgatorUrls = item.rapidgator_urls || [];
+        if (rapidgatorUrls.length === 0) {
+          downloadBtn.classList.add("btn-disabled");
+          downloadBtn.addEventListener("click", () => {
+            alert("No download link found.");
+          });
+        } else {
+          downloadBtn.addEventListener("click", async () => {
+            downloadBtn.disabled = true;
+            const ok = await openDownloads(item.id);
+            if (ok) {
+              downloadBtn.disabled = false;
+            } else {
+              downloadBtn.disabled = false;
+            }
+          });
+        }
+
+        actions.appendChild(viewedBtn);
+        actions.appendChild(downloadBtn);
+
+        body.appendChild(title);
+        body.appendChild(meta);
+        body.appendChild(actions);
+
+        card.appendChild(body);
+        return card;
+      }
+
+      function removeCard(card) {
+        card.classList.add("is-removed");
+        setTimeout(() => {
+          card.remove();
+          itemCountEl.textContent = cardsEl.children.length;
+          renderEmpty(cardsEl.children.length === 0);
+        }, 200);
+      }
+
+      async function loadItems() {
+        const payload = await fetchJson("/api/items");
+        clearCards();
+        payload.items.forEach((item) => {
+          cardsEl.appendChild(createCard(item));
+        });
+        itemCountEl.textContent = payload.items.length;
+        renderEmpty(payload.items.length === 0);
+      }
+
+      function renderHistogram(daily) {
+        histogramEl.innerHTML = "";
+        if (!daily || daily.length === 0) {
+          histogramEmptyEl.hidden = false;
+          return;
+        }
+        histogramEmptyEl.hidden = true;
+        const max = Math.max(...daily.map((entry) => entry.count), 1);
+        daily.forEach((entry) => {
+          const bar = document.createElement("div");
+          bar.className = "bar";
+          if (entry.count === 0) {
+            bar.classList.add("is-empty");
+          }
+          const height = (entry.count / max) * 100;
+          bar.style.height = `${Math.max(height, 4)}%`;
+          bar.title = `${entry.date}: ${entry.count}`;
+          if (entry.count > 0) {
+            const label = document.createElement("div");
+            label.className = "bar-count";
+            label.textContent = entry.count;
+            bar.appendChild(label);
+          }
+          histogramEl.appendChild(bar);
+        });
+      }
+
+      function formatDate(date) {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, "0");
+        const day = String(date.getDate()).padStart(2, "0");
+        return `${year}-${month}-${day}`;
+      }
+
+      async function loadStats() {
+        const payload = await fetchJson("/api/stats");
+        const map = new Map();
+        (payload.daily || []).forEach((entry) => {
+          map.set(entry.date, entry.count);
+        });
+        const daily = [];
+        const today = new Date();
+        for (let i = 0; i < 30; i += 1) {
+          const day = new Date(today);
+          day.setDate(today.getDate() - i);
+          const key = formatDate(day);
+          daily.push({ date: key, count: map.get(key) || 0 });
+        }
+        renderHistogram(daily);
+      }
+
+      async function loadSummary() {
+        const payload = await fetchJson("/api/summary");
+        statsStartDateEl.textContent = startDateEl.textContent || "-";
+        statTotalEl.textContent = payload.total ?? 0;
+        statUnseenEl.textContent = payload.unseen ?? 0;
+        statViewedEl.textContent = payload.viewed ?? 0;
+        statDownloadedEl.textContent = payload.downloaded ?? 0;
+        statAverageEl.textContent = payload.avg_per_day ?? 0;
+        statRateEl.textContent = `${payload.download_rate ?? 0}%`;
+        if (payload.most_active_day) {
+          statPeakEl.textContent = `${payload.most_active_day} (${payload.most_active_count})`;
+        } else {
+          statPeakEl.textContent = "-";
+        }
+        statLastDownloadEl.textContent = payload.last_downloaded || "-";
+      }
+
+      function renderTable(items) {
+        tableBodyEl.innerHTML = "";
+        if (!items || items.length === 0) {
+          tableEmptyEl.hidden = false;
+          return;
+        }
+        tableEmptyEl.hidden = true;
+        items.forEach((item) => {
+          const row = document.createElement("tr");
+
+          const titleCell = document.createElement("td");
+          titleCell.textContent = item.title || "Untitled";
+
+          const dateCell = document.createElement("td");
+          const date = item.post_date || item.discovered_at?.slice(0, 10) || "-";
+          dateCell.textContent = date;
+
+          const urlCell = document.createElement("td");
+          if (item.url) {
+            const link = document.createElement("a");
+            link.href = item.url;
+            link.textContent = "Open post";
+            link.target = "_blank";
+            link.rel = "noopener";
+            urlCell.appendChild(link);
+          } else {
+            urlCell.textContent = "-";
+          }
+
+          const downloadCell = document.createElement("td");
+          if (item.rapidgator_urls && item.rapidgator_urls.length > 0) {
+            const button = document.createElement("button");
+            button.className = "btn btn-secondary";
+            button.type = "button";
+            button.textContent = item.downloaded_at ? "Re-download" : "Download";
+            button.addEventListener("click", async () => {
+              button.disabled = true;
+              const ok = await openDownloads(item.id);
+              if (!ok) {
+                button.disabled = false;
+              }
+            });
+            downloadCell.appendChild(button);
+          } else {
+            downloadCell.innerHTML = '<span class="table-muted">No link</span>';
+          }
+
+          const viewedCell = document.createElement("td");
+          if (item.viewed_at) {
+            viewedCell.textContent = "Yes";
+          } else {
+            viewedCell.textContent = "No";
+          }
+
+          row.appendChild(titleCell);
+          row.appendChild(dateCell);
+          row.appendChild(urlCell);
+          row.appendChild(downloadCell);
+          row.appendChild(viewedCell);
+          tableBodyEl.appendChild(row);
+        });
+      }
+
+      function applyTableFilter() {
+        const from = tableFromEl.value;
+        const to = tableToEl.value;
+        const filtered = allVideos.filter((item) => {
+          const date = item.post_date || item.discovered_at?.slice(0, 10) || "";
+          if (!from && !to) {
+            return true;
+          }
+          if (!date) {
+            return false;
+          }
+          if (from && date < from) {
+            return false;
+          }
+          if (to && date > to) {
+            return false;
+          }
+          return true;
+        });
+        renderTable(filtered);
+      }
+
+      async function loadAllVideos() {
+        const payload = await fetchJson("/api/all");
+        allVideos = payload.items || [];
+        applyTableFilter();
+      }
+
+      async function openDownloads(id) {
+        try {
+          const payload = await fetchJson("/api/download", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id }),
+          });
+          const urls = payload.urls || [];
+          if (urls.length === 0) {
+            alert("No download link found.");
+            return false;
+          }
+          urls.forEach((url) => {
+            window.open(url, "_blank", "noopener");
+          });
+          return true;
+        } catch (error) {
+          alert("Download failed.");
+          return false;
+        }
+      }
+
+      async function refreshNow() {
+        refreshBtn.disabled = true;
+        refreshBtn.textContent = "Fetching...";
+        try {
+          await fetchJson("/api/refresh", { method: "POST" });
+          await loadSettings();
+          await loadItems();
+          await loadStats();
+          await loadSummary();
+          if (!tablePanelEl.hidden) {
+            await loadAllVideos();
+          }
+        } catch (error) {
+          alert("Refresh failed.");
+        } finally {
+          refreshBtn.disabled = false;
+          refreshBtn.textContent = "Fetch now";
+        }
+      }
+
+      async function saveInterval() {
+        const minutes = parseInt(intervalInput.value, 10);
+        if (!Number.isFinite(minutes)) {
+          alert("Enter a valid interval.");
+          return;
+        }
+        await fetchJson("/api/settings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ interval_minutes: minutes }),
+        });
+        await loadSettings();
+      }
+
+      refreshBtn.addEventListener("click", refreshNow);
+      toggleStatsBtn.addEventListener("click", async () => {
+        const willShow = statsPanelEl.hidden;
+        statsPanelEl.hidden = !willShow;
+        toggleStatsBtn.textContent = willShow ? "Hide stats" : "Show stats";
+        if (willShow) {
+          await loadSummary();
+        }
+      });
+      toggleTableBtn.addEventListener("click", async () => {
+        const willShow = tablePanelEl.hidden;
+        tablePanelEl.hidden = !willShow;
+        toggleTableBtn.textContent = willShow ? "Hide all videos" : "Show all videos";
+        if (willShow) {
+          await loadAllVideos();
+        }
+      });
+      viewAllBtn.addEventListener("click", async () => {
+        if (!confirm("Mark all current items as viewed?")) {
+          return;
+        }
+        viewAllBtn.disabled = true;
+        try {
+          await fetchJson("/api/view-all", { method: "POST" });
+          await loadItems();
+          if (!tablePanelEl.hidden) {
+            await loadAllVideos();
+          }
+        } catch (error) {
+          alert("Failed to mark all as viewed.");
+        } finally {
+          viewAllBtn.disabled = false;
+        }
+      });
+      tableApplyBtn.addEventListener("click", applyTableFilter);
+      tableClearBtn.addEventListener("click", () => {
+        tableFromEl.value = "";
+        tableToEl.value = "";
+        applyTableFilter();
+      });
+      saveIntervalBtn.addEventListener("click", saveInterval);
+
+      async function boot() {
+        await loadSettings();
+        await loadItems();
+        await loadStats();
+        await loadSummary();
+        setInterval(loadItems, 60 * 1000);
+        setInterval(loadSettings, 60 * 1000);
+        setInterval(loadStats, 5 * 60 * 1000);
+        setInterval(loadSummary, 5 * 60 * 1000);
+      }
+
+      function startClock() {
+        const update = () => {
+          const now = new Date();
+          clockEl.textContent = now.toLocaleTimeString();
+        };
+        update();
+        setInterval(update, 1000);
+      }
+
+      boot();
+      startClock();
+    </script>
+  </body>
+</html>
