@@ -85,10 +85,24 @@ func NewModel(iface string, thresholdGB float64) Model {
 		consecutiveDates: dates,
 	}
 
+	// Take initial OS counter snapshot so lastAbsRx/Tx are never zero
+	m.initAbsCounters()
+
 	// Restore from checkpoint: recover traffic that happened while program was off
 	m.restoreFromCheckpoint()
 
 	return m
+}
+
+// initAbsCounters reads the current OS counters once at startup so that
+// lastAbsRx/lastAbsTx are never zero if saveCheckpoint is called early.
+func (m *Model) initAbsCounters() {
+	_, stats, err := m.collector.Collect()
+	if err != nil || stats == nil {
+		return
+	}
+	m.lastAbsRx = stats.RxBytes
+	m.lastAbsTx = stats.TxBytes
 }
 
 // restoreFromCheckpoint loads the saved checkpoint and reconciles with current
@@ -104,12 +118,6 @@ func (m *Model) restoreFromCheckpoint() {
 
 	today := time.Now().Format("2006-01-02")
 
-	// Take a snapshot of current absolute counters
-	_, stats, err := m.collector.Collect()
-	if err != nil || stats == nil {
-		return
-	}
-
 	if cp.Date != today {
 		// Different day: save the checkpoint data as yesterday's final record,
 		// then start fresh. We can't recover cross-day traffic accurately.
@@ -121,19 +129,18 @@ func (m *Model) restoreFromCheckpoint() {
 		return
 	}
 
-	// Same day: restore accumulated total + add traffic from downtime
+	// Same day: restore accumulated total + add traffic from downtime.
+	// m.lastAbsRx/Tx were set by initAbsCounters().
 	rxAccum := cp.RxAccum
 	txAccum := cp.TxAccum
 
-	// If OS counters advanced (no reboot), add the diff
-	if stats.RxBytes >= cp.RxAbs {
-		rxAccum += stats.RxBytes - cp.RxAbs
+	if m.lastAbsRx >= cp.RxAbs {
+		rxAccum += m.lastAbsRx - cp.RxAbs
 	}
-	if stats.TxBytes >= cp.TxAbs {
-		txAccum += stats.TxBytes - cp.TxAbs
+	if m.lastAbsTx >= cp.TxAbs {
+		txAccum += m.lastAbsTx - cp.TxAbs
 	}
 	// If counter reset (reboot), we just use the saved accumulated value
-	// — we can't know how much traffic happened between reboot and now
 
 	m.tracker.Seed(rxAccum, txAccum, time.Now())
 }
