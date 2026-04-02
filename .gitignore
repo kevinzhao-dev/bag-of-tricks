@@ -60,6 +60,10 @@ Thumbs.db
 # Logs
 **/*.log
 
+# Environment files
+**/.env
+
 # Repo-specific build outputs
 video-player/pp
 wget-url-list/url-downloader
+check-repeat/check-repeat
