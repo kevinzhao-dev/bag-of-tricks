@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>pv</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div id="grid"></div>
+  <div id="status"></div>
+  <div id="help" class="hidden">
+    <div class="help-content">
+      <h2>Keyboard Shortcuts</h2>
+      <table>
+        <tr><td><kbd>h</kbd> <kbd>&larr;</kbd></td><td>Previous image</td></tr>
+        <tr><td><kbd>l</kbd> <kbd>&rarr;</kbd></td><td>Next image</td></tr>
+        <tr><td><kbd>j</kbd> / <kbd>k</kbd></td><td>Jump &plusmn;10</td></tr>
+        <tr><td><kbd>J</kbd> / <kbd>K</kbd></td><td>Jump &plusmn;100</td></tr>
+        <tr><td><kbd>[</kbd> / <kbd>]</kbd></td><td>Prev / next directory</td></tr>
+        <tr><td><kbd>Enter</kbd></td><td>Speed mode (split &amp; advance)</td></tr>
+        <tr><td><kbd>Shift+Enter</kbd></td><td>Speed mode: retreat all</td></tr>
+        <tr><td><kbd>Esc</kbd></td><td>Exit speed mode</td></tr>
+        <tr><td><kbd>g</kbd></td><td>Go to image #</td></tr>
+        <tr><td><kbd>+</kbd> / <kbd>-</kbd></td><td>More / fewer panes</td></tr>
+        <tr><td><kbd>Tab</kbd></td><td>Focus next pane</td></tr>
+        <tr><td><kbd>Shift+Tab</kbd></td><td>Focus prev pane</td></tr>
+        <tr><td><kbd>1-9</kbd></td><td>Focus pane #</td></tr>
+        <tr><td><kbd>f</kbd></td><td>Fullscreen</td></tr>
+        <tr><td><kbd>?</kbd></td><td>Toggle help</td></tr>
+        <tr><td><kbd>q</kbd></td><td>Quit</td></tr>
+      </table>
+      <p class="muted">Press <kbd>?</kbd> to close</p>
+    </div>
+  </div>
+  <div id="goto-dialog" class="hidden">
+    <div class="goto-content">
+      <label>Go to image #: <input type="number" id="goto-input" min="1"></label>
+    </div>
+  </div>
+  <script src="/static/app.js"></script>
+</body>
+</html>
