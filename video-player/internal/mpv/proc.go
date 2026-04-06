@@ -28,6 +28,8 @@ func Start(mpvPath string, opts StartOptions) (*Process, error) {
 		"--input-ipc-server=" + opts.SocketPath,
 		"--input-default-bindings=no",
 		"--input-terminal=no",
+		"--osd-font-size=28",
+		"--osd-duration=1500",
 	}
 
 	if opts.KeepOpen {

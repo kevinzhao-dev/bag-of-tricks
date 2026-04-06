@@ -2,6 +2,7 @@ package pp
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -19,7 +20,7 @@ var videoExts = map[string]bool{
 	".m4v":  true,
 }
 
-func BuildPlaylist(path string, latest bool) (files []string, startIndex int, err error) {
+func BuildPlaylist(path string, latest, recursive bool) (files []string, startIndex int, err error) {
 	path, err = filepath.Abs(path)
 	if err != nil {
 		return nil, 0, err
@@ -36,20 +37,43 @@ func BuildPlaylist(path string, latest bool) (files []string, startIndex int, er
 		startFile = path
 	}
 
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return nil, 0, err
-	}
-	for _, e := range entries {
-		if e.IsDir() {
-			continue
+	if recursive {
+		err = filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return nil // skip unreadable entries
+			}
+			if d.IsDir() {
+				if strings.HasPrefix(d.Name(), ".") && p != dir {
+					return fs.SkipDir
+				}
+				return nil
+			}
+			ext := strings.ToLower(filepath.Ext(d.Name()))
+			if videoExts[ext] {
+				files = append(files, p)
+			}
+			return nil
+		})
+		if err != nil {
+			return nil, 0, err
 		}
-		ext := strings.ToLower(filepath.Ext(e.Name()))
-		if !videoExts[ext] {
-			continue
+	} else {
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			return nil, 0, err
 		}
-		files = append(files, filepath.Join(dir, e.Name()))
+		for _, e := range entries {
+			if e.IsDir() {
+				continue
+			}
+			ext := strings.ToLower(filepath.Ext(e.Name()))
+			if !videoExts[ext] {
+				continue
+			}
+			files = append(files, filepath.Join(dir, e.Name()))
+		}
 	}
+
 	if latest {
 		// Sort by modification time, most recent first
 		sort.Slice(files, func(i, j int) bool {
@@ -74,4 +98,18 @@ func BuildPlaylist(path string, latest bool) (files []string, startIndex int, er
 		}
 	}
 	return files, 0, nil
+}
+
+// BuildDisplayNames returns relative paths for display. For non-recursive mode
+// this produces basenames; for recursive mode it shows subfolder/file.mp4.
+func BuildDisplayNames(files []string, baseDir string) []string {
+	names := make([]string, len(files))
+	for i, f := range files {
+		rel, err := filepath.Rel(baseDir, f)
+		if err != nil {
+			rel = filepath.Base(f)
+		}
+		names[i] = rel
+	}
+	return names
 }

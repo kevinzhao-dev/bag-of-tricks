@@ -22,8 +22,9 @@ type App struct {
 	MPV  *mpv.Client
 	Proc *mpv.Process
 
-	Playlist []string
-	Index    int
+	Playlist     []string
+	DisplayNames []string
+	Index        int
 
 	SeekShortS float64
 	SeekFineS  float64
@@ -222,6 +223,16 @@ func (a *App) ShowHelpOnce() {
 	fmt.Fprintln(os.Stdout, "  Esc    quit")
 	fmt.Fprintln(os.Stdout)
 	a.osd("Ready. Press : for commands, h for help.")
+}
+
+func (a *App) displayName(i int) string {
+	if i >= 0 && i < len(a.DisplayNames) && a.DisplayNames[i] != "" {
+		return a.DisplayNames[i]
+	}
+	if i >= 0 && i < len(a.Playlist) {
+		return filepath.Base(a.Playlist[i])
+	}
+	return ""
 }
 
 func (a *App) osd(msg string) {
@@ -580,7 +591,7 @@ func (a *App) Load(ctx context.Context, index int) error {
 	if err := a.MPV.Command(ctx, "playlist-play-index", a.Index); err != nil {
 		return err
 	}
-	a.osd(fmt.Sprintf("Open %s (%d/%d)", filepath.Base(a.Playlist[a.Index]), a.Index+1, len(a.Playlist)))
+	a.osd(fmt.Sprintf("Open %s (%d/%d)", a.displayName(a.Index), a.Index+1, len(a.Playlist)))
 	if !a.Continuous {
 		a.pauseAfterLoad = false
 	}
@@ -758,20 +769,20 @@ func (a *App) commandMode(in *bufio.Reader) (quit bool, err error) {
 
 func (a *App) printPlaylist() {
 	fmt.Fprintln(os.Stdout, "\nPlaylist:")
-	for i, p := range a.Playlist {
+	for i := range a.Playlist {
 		prefix := "  "
 		if i == a.Index {
 			prefix = "→ "
 		}
-		fmt.Fprintf(os.Stdout, "%s%3d  %s\n", prefix, i+1, filepath.Base(p))
+		fmt.Fprintf(os.Stdout, "%s%3d  %s\n", prefix, i+1, a.displayName(i))
 	}
 	fmt.Fprintln(os.Stdout)
 }
 
 func (a *App) findBySubstring(q string) int {
 	q = strings.ToLower(q)
-	for i, p := range a.Playlist {
-		if strings.Contains(strings.ToLower(filepath.Base(p)), q) {
+	for i := range a.Playlist {
+		if strings.Contains(strings.ToLower(a.displayName(i)), q) {
 			return i
 		}
 	}

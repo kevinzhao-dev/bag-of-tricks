@@ -9,12 +9,22 @@ import (
 	"time"
 )
 
-func WriteTempPlaylist(files []string) (path string, cleanup func(), err error) {
+func WriteTempPlaylist(files []string, displayNames []string) (path string, cleanup func(), err error) {
 	dir := os.TempDir()
 	name := "pp-playlist-" + strconv.FormatInt(time.Now().UnixNano(), 10) + ".m3u"
 	path = filepath.Join(dir, name)
-	content := strings.Join(files, "\n") + "\n"
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+
+	var b strings.Builder
+	if len(displayNames) == len(files) {
+		b.WriteString("#EXTM3U\n")
+		for i, f := range files {
+			fmt.Fprintf(&b, "#EXTINF:0,%s\n%s\n", displayNames[i], f)
+		}
+	} else {
+		b.WriteString(strings.Join(files, "\n") + "\n")
+	}
+
+	if err := os.WriteFile(path, []byte(b.String()), 0o644); err != nil {
 		return "", nil, err
 	}
 	return path, func() { _ = os.Remove(path) }, nil
@@ -132,12 +142,19 @@ local utils = require 'mp.utils'
 
 local active = false
 local sel = 0
-local win = 13
+local win = 18
 local pending_trash_until = 0
+local overlay = mp.create_osd_overlay("ass-events")
 
 local function basename(p)
   if p == nil then return "" end
   return string.gsub(p, "^.*[/\\\\]", "")
+end
+
+local function split_dir(title)
+  local d = string.match(title, "^(.*)/[^/]+$")
+  local f = string.match(title, "([^/]+)$") or title
+  return d, f
 end
 
 local function clamp(v, lo, hi)
@@ -199,6 +216,13 @@ local function size_suffix_gb(p)
   return s
 end
 
+local function ass_escape(s)
+  s = string.gsub(s, "\\", "\\\\")
+  s = string.gsub(s, "{", "\\{")
+  s = string.gsub(s, "}", "\\}")
+  return s
+end
+
 local function redraw()
   local pl = playlist()
   local n = #pl
@@ -213,26 +237,57 @@ local function redraw()
   local finish = math.min(n - 1, start + win - 1)
 
   local pos = mp.get_property_number('playlist-pos', 0)
+
+  -- ASS header: small font, semi-transparent dark background, top-left
+  local fs = 16
   local lines = {}
-  table.insert(lines, string.format("Playlist (%d/%d)  ↑↓ move  Enter play  Esc close  (GB)", sel + 1, n))
+  table.insert(lines, string.format(
+    "{\\an7\\fs%d\\fnmonospace\\bord1\\shad0\\1c&HFFFFFF&\\3c&H000000&\\4c&H000000&\\4a&H80&}" ..
+    "{\\b1}Playlist (%d/%d){\\b0}   ↑↓ move  Enter play  Esc close",
+    fs, sel + 1, n))
+
+  local last_dir = false
   for i = start, finish do
     local p = pl[i + 1]
-    local mark = "  "
-    if i == sel then mark = "→ " end
-    local now = "  "
-    if i == pos then now = "• " end
     local title = p.title
     if title == nil or title == "" then title = basename(p.filename) end
+    local d, fname = split_dir(title)
+
+    if d ~= last_dir then
+      if d ~= nil then
+        table.insert(lines, string.format("{\\1c&H88CCFF&}  ▸ %s/{\\1c&HFFFFFF&}", ass_escape(d)))
+      end
+      last_dir = d
+    end
+
     local size = size_suffix_gb(p.filename)
-    table.insert(lines, string.format("%s%s%3d  %s%s", mark, now, i + 1, title, size))
+    local indent = d ~= nil and "    " or "  "
+    local prefix = ""
+
+    if i == sel and i == pos then
+      prefix = string.format("{\\1c&H00FFFF&}→ • %3d%s", i + 1, indent)
+    elseif i == sel then
+      prefix = string.format("{\\1c&H00FF00&}→   %3d%s", i + 1, indent)
+    elseif i == pos then
+      prefix = string.format("{\\1c&H88DDFF&}  • %3d%s", i + 1, indent)
+    else
+      prefix = string.format("    %3d%s", i + 1, indent)
+    end
+
+    local line = prefix .. ass_escape(fname)
+    if size ~= "" then
+      line = line .. "{\\1c&HAAAAAA&}" .. ass_escape(size) .. "{\\1c&HFFFFFF&}"
+    end
+    table.insert(lines, line)
   end
 
-  mp.osd_message(table.concat(lines, "\n"), 3600)
+  overlay.data = table.concat(lines, "\\N")
+  overlay:update()
 end
 
 local function close()
   active = false
-  mp.osd_message("", 0)
+  overlay:remove()
   mp.remove_key_binding("pp_browser_up")
   mp.remove_key_binding("pp_browser_down")
   mp.remove_key_binding("pp_browser_pgup")

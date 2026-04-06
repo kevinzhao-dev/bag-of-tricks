@@ -28,6 +28,7 @@ func main() {
 		persist     = flag.Bool("persist-resume", false, "persist resume timestamps across runs (writes to ~/.pp_timestamps_go.json)")
 		mpvPathFlag = flag.String("mpv", "mpv", "mpv executable path")
 		latest      = flag.Bool("latest", false, "order video list by date added (most recent first)")
+		recursive   = flag.Bool("r", false, "scan subdirectories recursively")
 	)
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "pp (Go) - keyboard-first video player controller (mpv)\n\n")
@@ -54,7 +55,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	playlist, startIndex, err := pp.BuildPlaylist(path, *latest)
+	playlist, startIndex, err := pp.BuildPlaylist(path, *latest, *recursive)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(1)
@@ -63,6 +64,14 @@ func main() {
 		fmt.Fprintln(os.Stderr, "no video files found")
 		os.Exit(1)
 	}
+
+	// Compute base directory for display names
+	absPath, _ := filepath.Abs(path)
+	baseDir := absPath
+	if info, err := os.Stat(absPath); err == nil && !info.IsDir() {
+		baseDir = filepath.Dir(absPath)
+	}
+	displayNames := pp.BuildDisplayNames(playlist, baseDir)
 
 	var ts *pp.TimestampStore
 	if *persist {
@@ -88,7 +97,7 @@ func main() {
 	}
 	defer cleanupSock()
 
-	playlistPath, cleanupPlaylist, err := pp.WriteTempPlaylist(playlist)
+	playlistPath, cleanupPlaylist, err := pp.WriteTempPlaylist(playlist, displayNames)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to write playlist: %v\n", err)
 		os.Exit(1)
@@ -142,10 +151,11 @@ func main() {
 	_ = client.Command(context.Background(), "set_property", "mute", *startMuted)
 
 	app := &pp.App{
-		MPV:         client,
-		Proc:        player,
-		Playlist:    playlist,
-		Index:       startIndex,
+		MPV:          client,
+		Proc:         player,
+		Playlist:     playlist,
+		DisplayNames: displayNames,
+		Index:        startIndex,
 		SeekShortS:  float64(*seekShort),
 		SeekFineS:   float64(*seekFine),
 		SeekLongS:   float64(*seekLong),
