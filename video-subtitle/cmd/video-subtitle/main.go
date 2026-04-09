@@ -138,11 +138,17 @@ func (c *openAIClient) Transcribe(ctx context.Context, audioPath, model, languag
 			return nil, err
 		}
 	}
-	if err := writer.WriteField("response_format", "verbose_json"); err != nil {
-		return nil, err
-	}
-	if err := writer.WriteField("timestamp_granularities[]", "segment"); err != nil {
-		return nil, err
+	if strings.HasPrefix(model, "whisper") {
+		if err := writer.WriteField("response_format", "verbose_json"); err != nil {
+			return nil, err
+		}
+		if err := writer.WriteField("timestamp_granularities[]", "segment"); err != nil {
+			return nil, err
+		}
+	} else {
+		if err := writer.WriteField("response_format", "json"); err != nil {
+			return nil, err
+		}
 	}
 
 	file, err := os.Open(audioPath)
@@ -349,6 +355,42 @@ func shouldFallbackToChunking(err error) bool {
 		}
 	}
 	return false
+}
+
+func splitSentences(text string) []string {
+	var sentences []string
+	var current strings.Builder
+	for _, r := range text {
+		current.WriteRune(r)
+		if r == '。' || r == '！' || r == '？' || r == '\n' {
+			s := strings.TrimSpace(current.String())
+			if s != "" {
+				sentences = append(sentences, s)
+			}
+			current.Reset()
+		}
+	}
+	if s := strings.TrimSpace(current.String()); s != "" {
+		sentences = append(sentences, s)
+	}
+	return sentences
+}
+
+func splitTextToSegments(text string, duration float64) []Segment {
+	sentences := splitSentences(text)
+	if len(sentences) == 0 {
+		return []Segment{{Start: 0, End: duration, Text: text}}
+	}
+	segDur := duration / float64(len(sentences))
+	segments := make([]Segment, len(sentences))
+	for i, s := range sentences {
+		segments[i] = Segment{
+			Start: float64(i) * segDur,
+			End:   float64(i+1) * segDur,
+			Text:  s,
+		}
+	}
+	return segments
 }
 
 func informativeRuneCount(text string) int {
@@ -605,6 +647,9 @@ func transcribeInChunks(
 		if err != nil {
 			return nil, err
 		}
+		if len(chunkSegments) == 1 && chunkSegments[0].Start == 0 && chunkSegments[0].End == 0 {
+			chunkSegments = splitTextToSegments(chunkSegments[0].Text, segmentDuration)
+		}
 		for _, seg := range chunkSegments {
 			seg.Start += current
 			seg.End += current
@@ -740,7 +785,7 @@ func run() int {
 	translateWorkers := flag.Int("translate-workers", defaultTranslateWorkers, "Number of concurrent translation workers")
 	minTranslateChars := flag.Int("min-translate-chars", 4, "Skip translation for segments with fewer than N letters/numbers (0 to disable)")
 	timeoutSeconds := flag.Int("timeout-seconds", defaultTimeoutSeconds, "HTTP timeout for OpenAI requests (seconds)")
-	highAccuracy := flag.Bool("high-accuracy", false, "Use higher-accuracy transcription settings (slower)")
+	highAccuracy := flag.Bool("high-accuracy", true, "Use higher-accuracy transcription settings (slower)")
 	flag.Parse()
 
 	if flag.NArg() < 1 {
@@ -857,6 +902,13 @@ func run() int {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Transcription failed: %v\n", err)
 		return 1
+	}
+
+	if len(segments) == 1 && segments[0].Start == 0 && segments[0].End == 0 {
+		dur, durErr := audioDuration(audioPath)
+		if durErr == nil && dur > 0 {
+			segments = splitTextToSegments(segments[0].Text, dur)
+		}
 	}
 
 	if !*noTranslate && *sourceLang != *targetLang {
