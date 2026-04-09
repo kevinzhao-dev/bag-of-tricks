@@ -208,13 +208,22 @@ func (c *openAIClient) Translate(ctx context.Context, model, sourceLang, targetL
 		text,
 	)
 
+	isReasoning := strings.HasPrefix(model, "gpt-5") || strings.HasPrefix(model, "o1") || strings.HasPrefix(model, "o3")
+	systemRole := "system"
+	if isReasoning {
+		systemRole = "developer"
+	}
 	payload := map[string]any{
 		"model": model,
 		"messages": []map[string]string{
-			{"role": "system", "content": systemPrompt},
+			{"role": systemRole, "content": systemPrompt},
 			{"role": "user", "content": userPrompt},
 		},
-		"temperature": 0,
+	}
+	if isReasoning {
+		payload["reasoning_effort"] = "none"
+	} else {
+		payload["temperature"] = 0
 	}
 	bodyBytes, err := json.Marshal(payload)
 	if err != nil {
