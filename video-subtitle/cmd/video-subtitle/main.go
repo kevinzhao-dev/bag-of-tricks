@@ -23,8 +23,8 @@ import (
 )
 
 const (
-	defaultWhisperModel     = "whisper-1"
-	defaultTranslateModel   = "gpt-4o-mini"
+	defaultWhisperModel     = "gpt-4o-transcribe"
+	defaultTranslateModel   = "gpt-5.4"
 	defaultSourceLang       = "ja"
 	defaultTargetLang       = "zh-TW"
 	defaultChunkSeconds     = 600
@@ -794,6 +794,8 @@ func run() int {
 	defer os.RemoveAll(tmpDir)
 
 	audioPath := filepath.Join(tmpDir, "audio.wav")
+	logf("Whisper model: %s", *whisperModel)
+	logf("Translate model: %s", *translateModel)
 	logf("Extracting audio...")
 	if err := extractAudio(inputPath, audioPath); err != nil {
 		fmt.Fprintln(os.Stderr, err)
