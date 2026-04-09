@@ -220,9 +220,7 @@ func (c *openAIClient) Translate(ctx context.Context, model, sourceLang, targetL
 			{"role": "user", "content": userPrompt},
 		},
 	}
-	if isReasoning {
-		payload["reasoning_effort"] = "none"
-	} else {
+	if !isReasoning {
 		payload["temperature"] = 0
 	}
 	bodyBytes, err := json.Marshal(payload)
@@ -722,6 +720,11 @@ func translateSegments(
 				},
 			)
 			if err != nil {
+				preview := text
+				if len(preview) > 200 {
+					preview = preview[:200] + "..."
+				}
+				logf("Translation error on segment %d: %v\n  text: %s", idx, err, preview)
 				select {
 				case errCh <- err:
 				default:
@@ -848,6 +851,8 @@ func run() int {
 	defer os.RemoveAll(tmpDir)
 
 	audioPath := filepath.Join(tmpDir, "audio.wav")
+	cachePath := strings.TrimSuffix(inputPath, filepath.Ext(inputPath)) + ".segments.json"
+
 	logf("Whisper model: %s", *whisperModel)
 	logf("Translate model: %s", *translateModel)
 	logf("Extracting audio...")
@@ -891,32 +896,49 @@ func run() int {
 		logf("Chunking audio into %ds segments.", chunkSecondsValue)
 	}
 
-	logf("Transcribing with Whisper...")
-	segments, err := func() ([]Segment, error) {
-		if useChunking {
-			return transcribeInChunks(ctx, client, audioPath, *whisperModel, *sourceLang, chunkSecondsValue, *highAccuracy, logf)
+	var segments []Segment
+	if data, readErr := os.ReadFile(cachePath); readErr == nil {
+		if json.Unmarshal(data, &segments) == nil && len(segments) > 0 {
+			logf("Loaded %d cached segments from %s", len(segments), cachePath)
+		} else {
+			segments = nil
 		}
-		return transcribeWithRetry(ctx, client, audioPath, *whisperModel, *sourceLang, logf)
-	}()
-	if err != nil {
-		if !useChunking && shouldFallbackToChunking(err) {
-			if _, errProbe := exec.LookPath("ffprobe"); errProbe != nil {
-				fmt.Fprintln(os.Stderr, "ffprobe is required for chunked transcription.")
-				return 1
-			}
-			logf("Whisper request failed; retrying in chunks. Chunk size: %ds.", defaultChunkSeconds)
-			segments, err = transcribeInChunks(ctx, client, audioPath, *whisperModel, *sourceLang, defaultChunkSeconds, *highAccuracy, logf)
-		}
-	}
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Transcription failed: %v\n", err)
-		return 1
 	}
 
-	if len(segments) == 1 && segments[0].Start == 0 && segments[0].End == 0 {
-		dur, durErr := audioDuration(audioPath)
-		if durErr == nil && dur > 0 {
-			segments = splitTextToSegments(segments[0].Text, dur)
+	if len(segments) == 0 {
+		logf("Transcribing with Whisper...")
+		var err error
+		segments, err = func() ([]Segment, error) {
+			if useChunking {
+				return transcribeInChunks(ctx, client, audioPath, *whisperModel, *sourceLang, chunkSecondsValue, *highAccuracy, logf)
+			}
+			return transcribeWithRetry(ctx, client, audioPath, *whisperModel, *sourceLang, logf)
+		}()
+		if err != nil {
+			if !useChunking && shouldFallbackToChunking(err) {
+				if _, errProbe := exec.LookPath("ffprobe"); errProbe != nil {
+					fmt.Fprintln(os.Stderr, "ffprobe is required for chunked transcription.")
+					return 1
+				}
+				logf("Whisper request failed; retrying in chunks. Chunk size: %ds.", defaultChunkSeconds)
+				segments, err = transcribeInChunks(ctx, client, audioPath, *whisperModel, *sourceLang, defaultChunkSeconds, *highAccuracy, logf)
+			}
+		}
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Transcription failed: %v\n", err)
+			return 1
+		}
+
+		if len(segments) == 1 && segments[0].Start == 0 && segments[0].End == 0 {
+			dur, durErr := audioDuration(audioPath)
+			if durErr == nil && dur > 0 {
+				segments = splitTextToSegments(segments[0].Text, dur)
+			}
+		}
+
+		if cacheData, marshalErr := json.Marshal(segments); marshalErr == nil {
+			os.WriteFile(cachePath, cacheData, 0644)
+			logf("Cached %d segments to %s", len(segments), cachePath)
 		}
 	}
 
@@ -954,6 +976,7 @@ func run() int {
 		logf("Kept audio at %s", kept)
 	}
 
+	os.Remove(cachePath)
 	logf("Wrote %s", outputPath)
 	return 0
 }
