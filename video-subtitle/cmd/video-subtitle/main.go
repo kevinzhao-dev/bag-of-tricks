@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	defaultWhisperModel     = "gpt-4o-transcribe"
+	defaultWhisperModel     = "whisper-1"
 	defaultTranslateModel   = "gpt-5.4"
 	defaultSourceLang       = "ja"
 	defaultTargetLang       = "zh-TW"
