@@ -398,6 +398,65 @@
         display: block;
       }
 
+      .cover-link {
+        display: block;
+      }
+
+      .cover-link:hover {
+        filter: brightness(0.94);
+      }
+
+      .cover-link:focus-visible {
+        outline: 3px solid var(--accent);
+        outline-offset: -3px;
+      }
+
+      .media-dialog {
+        width: min(600px, calc(100% - 32px));
+        max-height: calc(100% - 32px);
+        padding: 20px;
+        border: 1px solid var(--stroke);
+        border-radius: 18px;
+        color: var(--ink);
+        background: var(--panel);
+        box-shadow: var(--shadow);
+      }
+
+      .media-dialog::backdrop {
+        background: rgba(32, 31, 26, 0.65);
+      }
+
+      .media-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .media-header h2 {
+        margin: 4px 0 0;
+        font-size: 1.15rem;
+      }
+
+      .media-item-title {
+        color: var(--muted);
+        overflow-wrap: anywhere;
+      }
+
+      .media-content a,
+      .card-images a {
+        color: var(--accent);
+        overflow-wrap: anywhere;
+      }
+
+      .media-files {
+        padding-left: 24px;
+      }
+
+      .media-files li + li {
+        margin-top: 10px;
+      }
+
       .card-body {
         padding: 16px;
         display: flex;
@@ -423,6 +482,19 @@
       .card-meta {
         font-size: 0.85rem;
         color: var(--muted);
+      }
+
+      .download-check {
+        margin-left: 8px;
+        color: var(--accent);
+        font-weight: 700;
+      }
+
+      .card-images {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px 12px;
+        font-size: 0.85rem;
       }
 
       .card-actions {
@@ -572,6 +644,17 @@
       <section class="empty" id="emptyState" hidden>No new videos yet.</section>
     </main>
 
+    <dialog class="media-dialog" id="mediaDialog" aria-labelledby="mediaTitle">
+      <header class="media-header">
+        <h2 id="mediaTitle">Downloads</h2>
+        <form method="dialog">
+          <button type="submit" class="btn btn-secondary" autofocus>Close</button>
+        </form>
+      </header>
+      <p class="media-item-title" id="mediaItemTitle"></p>
+      <div class="media-content" id="mediaContent"></div>
+    </dialog>
+
     <script>
       const startDateEl = document.getElementById("startDate");
       const clockEl = document.getElementById("clock");
@@ -605,6 +688,9 @@
       const tableToEl = document.getElementById("tableTo");
       const tableApplyBtn = document.getElementById("tableApply");
       const tableClearBtn = document.getElementById("tableClear");
+      const mediaDialog = document.getElementById("mediaDialog");
+      const mediaItemTitle = document.getElementById("mediaItemTitle");
+      const mediaContent = document.getElementById("mediaContent");
       let allVideos = [];
 
       async function fetchJson(url, options) {
@@ -631,20 +717,177 @@
         emptyStateEl.hidden = !show;
       }
 
+      function newTabLink(url, text = "") {
+        const link = document.createElement("a");
+        link.href = url;
+        link.target = "_blank";
+        link.rel = "noopener";
+        link.textContent = text;
+        return link;
+      }
+
+      function createCover(item) {
+        const firstImage = item.images?.[0];
+        const target = item.images == null
+          ? `/image/${item.id}`
+          : firstImage?.url || item.cover_url || item.url;
+        const cover = newTabLink(target);
+        cover.className = "cover cover-link";
+        cover.setAttribute("aria-label", `Open image for ${item.title || "this post"}`);
+        const thumbnail = item.cover_url || firstImage?.thumbnail_url;
+        if (thumbnail) {
+          const img = document.createElement("img");
+          img.src = thumbnail;
+          img.alt = item.title || "Cover";
+          img.loading = "lazy";
+          cover.appendChild(img);
+        }
+        return cover;
+      }
+
+      function createDownloadControl(item, className) {
+        const urls = item.rapidgator_urls || [];
+        const label = item.downloaded_at ? "Re-download" : "Download";
+        if (item.images != null && urls.length === 1) {
+          const link = singleDownloadLink(item, label);
+          link.className = className;
+          return link;
+        }
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = className;
+        button.textContent = urls.length > 1 ? `${label} (${urls.length})` : label;
+        if (item.images != null && urls.length === 0) {
+          button.disabled = true;
+          button.classList.add("btn-disabled");
+          button.textContent = "No download link";
+        } else {
+          button.addEventListener("click", () => showDownloads(item));
+        }
+        return button;
+      }
+
+      function showDownloadCheck(id) {
+        const check = document.getElementById(`download-check-${id}`);
+        if (check) {
+          check.hidden = false;
+        }
+      }
+
+      function singleDownloadLink(item, label) {
+        const link = newTabLink(`/download/${item.id}`, label);
+        async function checkDownload(event) {
+          if ((event.type === "auxclick" && event.button !== 1) || item.downloaded_at) {
+            return;
+          }
+          try {
+            // The new tab records the download before its redirect. Let that request finish.
+            for (let attempt = 0; attempt < 4; attempt += 1) {
+              await new Promise((resolve) => setTimeout(resolve, 250));
+              const media = await fetchJson(`/api/media/${item.id}`);
+              if (media.downloaded_at) {
+                item.downloaded_at = media.downloaded_at;
+                showDownloadCheck(item.id);
+                return;
+              }
+            }
+          } catch {
+            // The next dashboard refresh loads the saved status.
+          }
+        }
+        link.addEventListener("click", checkDownload);
+        link.addEventListener("auxclick", checkDownload);
+        return link;
+      }
+
+      async function showDownloads(item) {
+        mediaItemTitle.textContent = item.title || "Untitled";
+        const content = document.createElement("div");
+        mediaContent.replaceChildren(content);
+        mediaDialog.showModal();
+        if (item.images == null) {
+          content.setAttribute("role", "status");
+          content.textContent = "Loading links…";
+          try {
+            Object.assign(item, await fetchJson(`/api/media/${item.id}`));
+          } catch {
+            // The saved cover and links remain available if the request fails.
+          }
+          if (!mediaDialog.open || !content.isConnected) {
+            return;
+          }
+          content.removeAttribute("role");
+          content.replaceChildren();
+        }
+        renderDownloads(content, item);
+      }
+
+      function downloadLabel(url, index) {
+        const filename = new URL(url).pathname.split("/")[3];
+        if (filename) {
+          try {
+            return decodeURIComponent(filename).replace(/\.html$/i, "");
+          } catch {
+            return filename;
+          }
+        }
+        return `Part ${index + 1}`;
+      }
+
+      function renderDownloads(content, item) {
+        const urls = item.rapidgator_urls || [];
+        if (urls.length === 0) {
+          content.textContent = "No download link found.";
+          return;
+        }
+        if (urls.length === 1) {
+          content.appendChild(singleDownloadLink(item, downloadLabel(urls[0], 0)));
+          return;
+        }
+
+        const hint = document.createElement("p");
+        hint.textContent = "Open each file separately. Mark the post downloaded when you’re done.";
+        const list = document.createElement("ol");
+        list.className = "media-files";
+        urls.forEach((url, index) => {
+          const entry = document.createElement("li");
+          entry.appendChild(newTabLink(url, downloadLabel(url, index)));
+          list.appendChild(entry);
+        });
+
+        const mark = document.createElement("button");
+        mark.type = "button";
+        mark.className = "btn btn-warning";
+        mark.textContent = "Mark downloaded";
+        mark.addEventListener("click", async () => {
+          mark.disabled = true;
+          try {
+            await fetchJson("/api/download", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ id: item.id }),
+            });
+          } catch {
+            mark.disabled = false;
+            alert("Could not mark the post downloaded.");
+            return;
+          }
+          if (content.isConnected) {
+            mediaDialog.close();
+          }
+          showDownloadCheck(item.id);
+          if (!tablePanelEl.hidden) {
+            await loadAllVideos();
+          }
+        });
+        content.append(hint, list, mark);
+      }
+
       function createCard(item) {
         const card = document.createElement("article");
         card.className = "card";
 
-        const cover = document.createElement("div");
-        cover.className = "cover";
-        if (item.cover_url) {
-          const img = document.createElement("img");
-          img.src = item.cover_url;
-          img.alt = item.title || "cover";
-          img.loading = "lazy";
-          cover.appendChild(img);
-        }
-        card.appendChild(cover);
+        card.appendChild(createCover(item));
 
         const body = document.createElement("div");
         body.className = "card-body";
@@ -667,6 +910,15 @@
         meta.className = "card-meta";
         const posted = item.post_date || item.discovered_at?.slice(0, 10) || "-";
         meta.textContent = `Post date: ${posted}`;
+        const check = document.createElement("span");
+        check.id = `download-check-${item.id}`;
+        check.className = "download-check";
+        check.textContent = "✓";
+        check.title = "Downloaded";
+        check.setAttribute("role", "img");
+        check.setAttribute("aria-label", "Downloaded");
+        check.hidden = !item.downloaded_at;
+        meta.appendChild(check);
 
         const actions = document.createElement("div");
         actions.className = "card-actions";
@@ -684,33 +936,19 @@
           removeCard(card);
         });
 
-        const downloadBtn = document.createElement("button");
-        downloadBtn.className = "btn btn-warning";
-        downloadBtn.type = "button";
-        downloadBtn.textContent = "Download";
-        const rapidgatorUrls = item.rapidgator_urls || [];
-        if (rapidgatorUrls.length === 0) {
-          downloadBtn.classList.add("btn-disabled");
-          downloadBtn.addEventListener("click", () => {
-            alert("No download link found.");
-          });
-        } else {
-          downloadBtn.addEventListener("click", async () => {
-            downloadBtn.disabled = true;
-            const ok = await openDownloads(item.id);
-            if (ok) {
-              downloadBtn.disabled = false;
-            } else {
-              downloadBtn.disabled = false;
-            }
-          });
-        }
-
         actions.appendChild(viewedBtn);
-        actions.appendChild(downloadBtn);
+        actions.appendChild(createDownloadControl(item, "btn btn-warning"));
 
         body.appendChild(title);
         body.appendChild(meta);
+        if (item.images?.length > 1) {
+          const imageLinks = document.createElement("div");
+          imageLinks.className = "card-images";
+          item.images.slice(1).forEach((image, index) => {
+            imageLinks.appendChild(newTabLink(image.url, `Image ${index + 2}`));
+          });
+          body.appendChild(imageLinks);
+        }
         body.appendChild(actions);
 
         card.appendChild(body);
@@ -834,19 +1072,8 @@
           }
 
           const downloadCell = document.createElement("td");
-          if (item.rapidgator_urls && item.rapidgator_urls.length > 0) {
-            const button = document.createElement("button");
-            button.className = "btn btn-secondary";
-            button.type = "button";
-            button.textContent = item.downloaded_at ? "Re-download" : "Download";
-            button.addEventListener("click", async () => {
-              button.disabled = true;
-              const ok = await openDownloads(item.id);
-              if (!ok) {
-                button.disabled = false;
-              }
-            });
-            downloadCell.appendChild(button);
+          if (item.images == null || item.rapidgator_urls?.length) {
+            downloadCell.appendChild(createDownloadControl(item, "btn btn-secondary"));
           } else {
             downloadCell.innerHTML = '<span class="table-muted">No link</span>';
           }
@@ -893,28 +1120,6 @@
         const payload = await fetchJson("/api/all");
         allVideos = payload.items || [];
         applyTableFilter();
-      }
-
-      async function openDownloads(id) {
-        try {
-          const payload = await fetchJson("/api/download", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ id }),
-          });
-          const urls = payload.urls || [];
-          if (urls.length === 0) {
-            alert("No download link found.");
-            return false;
-          }
-          urls.forEach((url) => {
-            window.open(url, "_blank", "noopener");
-          });
-          return true;
-        } catch (error) {
-          alert("Download failed.");
-          return false;
-        }
       }
 
       async function refreshNow() {

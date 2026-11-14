@@ -1,7 +1,7 @@
 # Site Monitor Dashboard
 
 Local web dashboard to monitor a video sharing site for new posts, store them in
-SQLite, and show only items you have not viewed or downloaded.
+SQLite, and show items until you mark them as viewed.
 
 ## What is included
 
@@ -25,7 +25,28 @@ python -m pip install requests beautifulsoup4 lxml
 python dashboard.py
 ```
 
-Open `http://127.0.0.1:8000`.
+Open `http://127.0.0.1:8765`.
+
+## Start at login on macOS
+
+Install a per-user LaunchAgent:
+
+```bash
+./install-launchagent.sh
+```
+
+This starts the dashboard when the current macOS user logs in. The LaunchAgent
+runs `run-dashboard.sh`, which sources the repo-wide venv from the parent
+directory before starting `dashboard.py`.
+
+Useful commands:
+
+```bash
+launchctl print gui/$(id -u)/com.kevin.site-monitor-dashboard
+launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.kevin.site-monitor-dashboard.plist
+tail -f ~/Library/Logs/site-monitor-dashboard.log
+tail -f ~/Library/Logs/site-monitor-dashboard.err.log
+```
 
 ## Environment variables
 
@@ -41,12 +62,20 @@ Open `http://127.0.0.1:8000`.
 
 - Only items with `post_date` >= `START_DATE` are shown.
 - Clicking "Viewed" marks a post as viewed and hides it.
-- Clicking "Download" marks a post as downloaded and redirects to Rapidgator.
+- Click a cover to open the first image linked in the original post. Additional
+  images are linked on the card.
+- Clicking "Download" opens Rapidgator and marks single-file posts as downloaded.
+  For multiple files, open each link in the download dialog and select
+  "Mark downloaded" when done. Downloaded cards show a checkmark and stay in the
+  list until you mark them as viewed.
+- Existing posts load image links from the source on the next crawl or when you
+  first open their image or download controls.
 - Manual refresh is available in the UI; the scheduler runs in the background.
 
 ## API endpoints
 
 - `GET /api/items`: list unseen items
+- `GET /api/media/<id>`: get image and download links, fetching missing metadata on demand
 - `POST /api/view`: mark viewed (`{"id": 123}`)
 - `GET /download/<id>`: mark downloaded and redirect
 - `POST /api/refresh`: fetch now

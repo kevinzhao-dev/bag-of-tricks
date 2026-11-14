@@ -5,13 +5,14 @@ import re
 import sqlite3
 import threading
 import time
+from contextlib import contextmanager
 from datetime import date, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import Any, Dict, List, Optional
-from urllib.parse import urljoin
+from typing import Any, Dict, Iterator, List, Optional
+from urllib.parse import urljoin, urlsplit
 
 import requests
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 
 BASE_URL = os.getenv("SITE_URL", "https://javip.net/")
 DB_PATH = os.getenv("DB_PATH", "videos.db")
@@ -32,11 +33,15 @@ def now_str() -> str:
     return time.strftime("%Y-%m-%d %H:%M:%S")
 
 
-def db_connect() -> sqlite3.Connection:
+@contextmanager
+def db_connect() -> Iterator[sqlite3.Connection]:
     conn = sqlite3.connect(DB_PATH, timeout=30, isolation_level=None)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA busy_timeout=30000")
-    return conn
+    try:
+        yield conn
+    finally:
+        conn.close()
 
 
 def init_db() -> None:
@@ -51,6 +56,7 @@ def init_db() -> None:
                     url TEXT UNIQUE NOT NULL,
                     title TEXT,
                     cover_url TEXT,
+                    images TEXT,
                     rapidgator_url TEXT,
                     rapidgator_urls TEXT,
                     post_date TEXT,
@@ -79,6 +85,8 @@ def ensure_video_columns(conn: sqlite3.Connection) -> None:
     columns = {row["name"] for row in conn.execute("PRAGMA table_info(videos)").fetchall()}
     if "rapidgator_urls" not in columns:
         conn.execute("ALTER TABLE videos ADD COLUMN rapidgator_urls TEXT")
+    if "images" not in columns:
+        conn.execute("ALTER TABLE videos ADD COLUMN images TEXT")
 
 
 def get_setting(conn: sqlite3.Connection, key: str, default: Optional[str]) -> Optional[str]:
@@ -220,7 +228,67 @@ def parse_date(text: str) -> Optional[str]:
     return None
 
 
-def extract_post_details(html: str, url: str) -> Dict[str, Optional[str]]:
+def http_url(value: str, base_url: str = "") -> Optional[str]:
+    if not value.strip():
+        return None
+    try:
+        resolved = urljoin(base_url, value.strip())
+        parts = urlsplit(resolved)
+    except ValueError:
+        return None
+    if parts.scheme in ("http", "https") and parts.hostname:
+        return resolved
+    return None
+
+
+def is_rapidgator_file(url: str) -> bool:
+    resolved = http_url(url)
+    if not resolved:
+        return False
+    parts = urlsplit(resolved)
+    return (
+        parts.hostname in ("rapidgator.net", "www.rapidgator.net")
+        and parts.path.startswith("/file/")
+        and bool(parts.path.split("/")[2])
+    )
+
+
+def extract_images(entry: Optional[Tag], url: str, cover_url: Optional[str]) -> List[Dict[str, str]]:
+    if entry is None:
+        return []
+
+    images: Dict[str, Dict[str, str]] = {}
+    for node in entry.select("a[href], img"):
+        if node.name == "a":
+            target = http_url(node["href"], url)
+            if not target:
+                continue
+            parts = urlsplit(target)
+            if parts.hostname not in ("imgpv.com", "www.imgpv.com") and not re.search(
+                r"\.(?:avif|gif|jpe?g|png|webp)(?:\.html)?$", parts.path, re.IGNORECASE
+            ):
+                continue
+            img = node.find("img")
+        else:
+            target = None
+            img = node
+            # A linked thumbnail is represented by its image-page URL above.
+            anchor = img.find_parent("a", href=True)
+            if anchor and http_url(anchor["href"], url) in images:
+                continue
+
+        thumbnail = http_url(img.get("data-src") or img.get("src") or "", url) if img else None
+        target = target or thumbnail
+        if not target or (node.name == "img" and target == cover_url):
+            continue
+        image = images.setdefault(target, {"url": target})
+        if thumbnail:
+            image.setdefault("thumbnail_url", thumbnail)
+
+    return list(images.values())
+
+
+def extract_post_details(html: str, url: str) -> Dict[str, Any]:
     soup = BeautifulSoup(html, "lxml")
     title = None
     for sel in ("h2.title", "h1.entry-title", "h2.entry-title", "h1", "title"):
@@ -237,35 +305,31 @@ def extract_post_details(html: str, url: str) -> Dict[str, Optional[str]]:
         date_text = date_node.get_text(strip=True)
     post_date = parse_date(date_text or "")
 
+    entry = soup.select_one("div.entry, .entry-content") or soup.select_one("article")
     cover_url = None
     og_image = soup.find("meta", property="og:image")
     if og_image and og_image.get("content"):
         cover_url = og_image.get("content", "").strip()
     if not cover_url:
-        entry = soup.select_one("div.entry") or soup
-        img = entry.find("img")
+        img = (entry if entry is not None else soup).find("img")
         if img and img.get("src"):
             cover_url = img.get("src", "").strip()
     if cover_url:
-        cover_url = urljoin(url, cover_url)
+        cover_url = http_url(cover_url, url)
 
-    rapidgator_urls: List[str] = []
+    rapidgator_urls = []
     for anchor in soup.find_all("a", href=True):
-        href = anchor.get("href", "")
-        if "rapidgator.net" in href:
-            rapidgator_urls.append(urljoin(url, href.strip()))
+        href = http_url(anchor["href"], url)
+        if href and is_rapidgator_file(href):
+            rapidgator_urls.append(href)
 
-    seen = set()
-    uniq_urls = []
-    for link in rapidgator_urls:
-        if link not in seen:
-            uniq_urls.append(link)
-            seen.add(link)
+    uniq_urls = list(dict.fromkeys(rapidgator_urls))
     rapidgator_url = uniq_urls[0] if uniq_urls else None
 
     return {
         "title": title,
         "cover_url": cover_url,
+        "images": extract_images(entry, url, cover_url),
         "rapidgator_url": rapidgator_url,
         "rapidgator_urls": uniq_urls,
         "post_date": post_date,
@@ -280,47 +344,34 @@ def should_skip(post_date: Optional[str], discovered_date: str) -> bool:
     return False
 
 
-def save_video(conn: sqlite3.Connection, url: str, details: Dict[str, Optional[str]]) -> None:
-    rapidgator_urls = details.get("rapidgator_urls")
-    if isinstance(rapidgator_urls, list):
-        rapidgator_urls_json = json.dumps(rapidgator_urls)
-    else:
-        rapidgator_urls_json = None
+def save_video(conn: sqlite3.Connection, url: str, details: Dict[str, Any]) -> None:
+    images_json = json.dumps(details["images"]) if "images" in details else None
+    rapidgator_urls_json = (
+        json.dumps(details["rapidgator_urls"]) if "rapidgator_urls" in details else None
+    )
     with DB_LOCK:
         conn.execute(
             """
-            INSERT OR IGNORE INTO videos
-                (url, title, cover_url, rapidgator_url, rapidgator_urls, post_date, discovered_at)
-            VALUES
-                (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO videos
+                (url, title, cover_url, images, rapidgator_url, rapidgator_urls, post_date, discovered_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(url) DO UPDATE SET
+                title = COALESCE(excluded.title, title),
+                cover_url = COALESCE(excluded.cover_url, cover_url),
+                images = COALESCE(excluded.images, images),
+                rapidgator_url = COALESCE(excluded.rapidgator_url, rapidgator_url),
+                rapidgator_urls = COALESCE(excluded.rapidgator_urls, rapidgator_urls),
+                post_date = COALESCE(excluded.post_date, post_date)
             """,
             (
                 url,
                 details.get("title"),
                 details.get("cover_url"),
+                images_json,
                 details.get("rapidgator_url"),
                 rapidgator_urls_json,
                 details.get("post_date"),
                 now_str(),
-            ),
-        )
-        conn.execute(
-            """
-            UPDATE videos SET
-                title = COALESCE(?, title),
-                cover_url = COALESCE(?, cover_url),
-                rapidgator_url = COALESCE(?, rapidgator_url),
-                rapidgator_urls = COALESCE(?, rapidgator_urls),
-                post_date = COALESCE(?, post_date)
-            WHERE url = ?
-            """,
-            (
-                details.get("title"),
-                details.get("cover_url"),
-                details.get("rapidgator_url"),
-                rapidgator_urls_json,
-                details.get("post_date"),
-                url,
             ),
         )
 
@@ -342,8 +393,8 @@ def run_fetch_once() -> Dict[str, Any]:
 
         with db_connect() as conn:
             for link in links:
-                exists = conn.execute("SELECT 1 FROM videos WHERE url = ?", (link,)).fetchone()
-                if exists:
+                existing = conn.execute("SELECT images FROM videos WHERE url = ?", (link,)).fetchone()
+                if existing and existing["images"] is not None:
                     continue
                 try:
                     post_html = fetch_html(link)
@@ -352,11 +403,12 @@ def run_fetch_once() -> Dict[str, Any]:
                     continue
 
                 details = extract_post_details(post_html, link)
-                if should_skip(details.get("post_date"), today_str):
+                if not existing and should_skip(details.get("post_date"), today_str):
                     continue
 
                 save_video(conn, link, details)
-                result["new"] += 1
+                if not existing:
+                    result["new"] += 1
                 if REQUEST_DELAY_SEC > 0:
                     time.sleep(REQUEST_DELAY_SEC)
 
@@ -503,17 +555,17 @@ def parse_rapidgator_urls(row: Any) -> List[str]:
     else:
         raw = row.get("rapidgator_urls")
         single = row.get("rapidgator_url")
+    urls = [single] if single else []
     if raw:
         try:
             parsed = json.loads(raw)
-            if isinstance(parsed, list):
-                return parsed
         except json.JSONDecodeError:
-            pass
-        return [u for u in raw.splitlines() if u.strip()]
-    if single:
-        return [single]
-    return []
+            parsed = raw.splitlines()
+        if isinstance(parsed, list):
+            urls = parsed
+    return list(dict.fromkeys(
+        url.strip() for url in urls if isinstance(url, str) and is_rapidgator_file(url)
+    ))
 
 
 def normalize_rows(rows: List[sqlite3.Row]) -> List[Dict[str, Any]]:
@@ -521,9 +573,11 @@ def normalize_rows(rows: List[sqlite3.Row]) -> List[Dict[str, Any]]:
     for row in rows:
         item = dict(row)
         urls = parse_rapidgator_urls(row)
+        if item["cover_url"]:
+            item["cover_url"] = http_url(item["cover_url"])
+        item["images"] = json.loads(row["images"]) if row["images"] is not None else None
         item["rapidgator_urls"] = urls
-        if not item.get("rapidgator_url") and urls:
-            item["rapidgator_url"] = urls[0]
+        item["rapidgator_url"] = urls[0] if urls else None
         items.append(item)
     return items
 
@@ -532,10 +586,10 @@ def list_new_videos() -> List[Dict[str, Any]]:
     with db_connect() as conn:
         rows = conn.execute(
             """
-            SELECT id, url, title, cover_url, rapidgator_url, rapidgator_urls, post_date, discovered_at
+            SELECT id, url, title, cover_url, images, rapidgator_url, rapidgator_urls,
+                   post_date, discovered_at, downloaded_at
             FROM videos
             WHERE viewed_at IS NULL
-              AND downloaded_at IS NULL
               AND (
                 (post_date IS NOT NULL AND post_date >= ?)
                 OR (post_date IS NULL AND substr(discovered_at, 1, 10) >= ?)
@@ -551,13 +605,35 @@ def list_all_videos() -> List[Dict[str, Any]]:
     with db_connect() as conn:
         rows = conn.execute(
             """
-            SELECT id, url, title, cover_url, rapidgator_url, rapidgator_urls, post_date, discovered_at,
-                   viewed_at, downloaded_at
+            SELECT id, url, title, cover_url, images, rapidgator_url, rapidgator_urls,
+                   post_date, discovered_at, viewed_at, downloaded_at
             FROM videos
             ORDER BY COALESCE(post_date, substr(discovered_at, 1, 10)) DESC, discovered_at DESC
             """
         ).fetchall()
     return normalize_rows(rows)
+
+
+def get_video_media(video_id: int) -> Optional[Dict[str, Any]]:
+    with db_connect() as conn:
+        query = """
+            SELECT url, cover_url, images, rapidgator_url, rapidgator_urls, downloaded_at
+            FROM videos WHERE id = ?
+        """
+        row = conn.execute(query, (video_id,)).fetchone()
+        if row is None:
+            return None
+        if row["images"] is None:
+            try:
+                html = fetch_html(row["url"])
+            except (OSError, requests.RequestException):
+                # Leave the row eligible for a retry and show the saved links meanwhile.
+                pass
+            else:
+                save_video(conn, row["url"], extract_post_details(html, row["url"]))
+            row = conn.execute(query, (video_id,)).fetchone()
+
+    return normalize_rows([row])[0]
 
 
 def mark_viewed(video_id: int) -> None:
@@ -576,7 +652,7 @@ def mark_all_viewed() -> int:
                 """
                 UPDATE videos
                 SET viewed_at = ?
-                WHERE viewed_at IS NULL AND downloaded_at IS NULL
+                WHERE viewed_at IS NULL
                   AND (
                     (post_date IS NOT NULL AND post_date >= ?)
                     OR (post_date IS NULL AND substr(discovered_at, 1, 10) >= ?)
@@ -588,19 +664,8 @@ def mark_all_viewed() -> int:
 
 
 def mark_downloaded(video_id: int) -> Optional[str]:
-    with DB_LOCK:
-        with db_connect() as conn:
-            row = conn.execute(
-                "SELECT rapidgator_url, rapidgator_urls FROM videos WHERE id = ?", (video_id,)
-            ).fetchone()
-            if not row:
-                return None
-            conn.execute(
-                "UPDATE videos SET downloaded_at = ? WHERE id = ?",
-                (now_str(), video_id),
-            )
-            urls = parse_rapidgator_urls(row)
-            return urls[0] if urls else None
+    urls = mark_downloaded_and_get_links(video_id)
+    return urls[0] if urls else None
 
 
 def mark_downloaded_and_get_links(video_id: int) -> List[str]:
@@ -609,13 +674,14 @@ def mark_downloaded_and_get_links(video_id: int) -> List[str]:
             row = conn.execute(
                 "SELECT rapidgator_url, rapidgator_urls FROM videos WHERE id = ?", (video_id,)
             ).fetchone()
-            if not row:
+            urls = parse_rapidgator_urls(row) if row else []
+            if not urls:
                 return []
             conn.execute(
                 "UPDATE videos SET downloaded_at = ? WHERE id = ?",
                 (now_str(), video_id),
             )
-            return parse_rapidgator_urls(row)
+            return urls
 
 
 def get_interval_minutes() -> int:
@@ -714,7 +780,7 @@ def get_summary_stats() -> Dict[str, Any]:
         unseen = conn.execute(
             f"""
             SELECT COUNT(*) AS c FROM videos
-            WHERE viewed_at IS NULL AND downloaded_at IS NULL AND {base_filter}
+            WHERE viewed_at IS NULL AND {base_filter}
             """,
             params,
         ).fetchone()["c"]
@@ -793,6 +859,40 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self._send_json({"items": items})
             return
 
+        if self.path.startswith("/api/media/"):
+            try:
+                video_id = int(self.path.removeprefix("/api/media/"))
+            except ValueError:
+                self._send_json({"error": "Invalid id"}, 400)
+                return
+            media = get_video_media(video_id)
+            if media is None:
+                self._send_json({"error": "Video not found"}, 404)
+            else:
+                self._send_json(media)
+            return
+
+        if self.path.startswith("/image/"):
+            try:
+                video_id = int(self.path.removeprefix("/image/"))
+            except ValueError:
+                self._send_text("Invalid image id", "text/plain; charset=utf-8", 400)
+                return
+            media = get_video_media(video_id)
+            if media is None:
+                self._send_text("Image not found", "text/plain; charset=utf-8", 404)
+                return
+            images = media["images"]
+            target = images[0]["url"] if images else media["cover_url"] or http_url(media["url"])
+            if not target:
+                self._send_text("Image not found", "text/plain; charset=utf-8", 404)
+                return
+            self.send_response(302)
+            self.send_header("Location", requests.utils.requote_uri(target))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            return
+
         if self.path.startswith("/api/settings"):
             self._send_json(get_status_payload())
             return
@@ -822,6 +922,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 return
             self.send_response(302)
             self.send_header("Location", rapidgator_url)
+            self.send_header("Cache-Control", "no-store")
             self.end_headers()
             return
 
