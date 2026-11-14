@@ -57,6 +57,7 @@ tail -f ~/Library/Logs/site-monitor-dashboard.err.log
 - `TIMEOUT_SEC`: request timeout (default `20`)
 - `REQUEST_DELAY_SEC`: delay between post fetches (default `0.5`)
 - `DB_PATH`: SQLite file path (default `videos.db`)
+- `DOWNLOADS_DIR`: directory to check for local video files (default `~/Downloads`)
 
 ## Behavior
 
@@ -68,6 +69,12 @@ tail -f ~/Library/Logs/site-monitor-dashboard.err.log
   For multiple files, open each link in the download dialog and select
   "Mark downloaded" when done. Downloaded cards show a checkmark and stay in the
   list until you mark them as viewed.
+- On each card refresh, the dashboard checks Downloads and its subfolders for
+  completed video files. It matches Rapidgator filenames and video IDs, so
+  descriptions added to filenames and browser duplicate suffixes are supported.
+  Cards show how many files were found for partial downloads. A local match
+  reflects what is currently on disk and does not change the saved download or
+  viewed history.
 - Existing posts load image links from the source on the next crawl or when you
   first open their image or download controls.
 - Manual refresh is available in the UI; the scheduler runs in the background.

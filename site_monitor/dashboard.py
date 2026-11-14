@@ -8,14 +8,18 @@ import time
 from contextlib import contextmanager
 from datetime import date, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional
 from urllib.parse import urljoin, urlsplit
 
 import requests
 from bs4 import BeautifulSoup, Tag
 
+from local_downloads import match_downloads, scan_downloads
+
 BASE_URL = os.getenv("SITE_URL", "https://javip.net/")
 DB_PATH = os.getenv("DB_PATH", "videos.db")
+DOWNLOADS_DIR = Path(os.getenv("DOWNLOADS_DIR", "~/Downloads")).expanduser()
 START_DATE_STR = os.getenv("START_DATE", "2025-12-25")
 TOP_N = int(os.getenv("TOP_N", "20"))
 TIMEOUT_SEC = int(os.getenv("TIMEOUT_SEC", "20"))
@@ -856,6 +860,11 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
         if self.path.startswith("/api/items"):
             items = list_new_videos()
+            local_keys = scan_downloads(DOWNLOADS_DIR) if items else set()
+            for item in items:
+                item["local_download"] = match_downloads(
+                    item["title"] or "", item["rapidgator_urls"], local_keys
+                )
             self._send_json({"items": items})
             return
 

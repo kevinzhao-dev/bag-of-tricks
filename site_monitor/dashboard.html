@@ -490,6 +490,11 @@
         font-weight: 700;
       }
 
+      .local-download {
+        margin-left: 8px;
+        white-space: nowrap;
+      }
+
       .card-images {
         display: flex;
         flex-wrap: wrap;
@@ -914,11 +919,19 @@
         check.id = `download-check-${item.id}`;
         check.className = "download-check";
         check.textContent = "✓";
-        check.title = "Downloaded";
+        const local = item.local_download;
+        const onDisk = local?.found > 0 && local.found === local.total;
+        check.title = onDisk ? "Found in Downloads" : "Downloaded";
         check.setAttribute("role", "img");
-        check.setAttribute("aria-label", "Downloaded");
-        check.hidden = !item.downloaded_at;
+        check.setAttribute("aria-label", check.title);
+        check.hidden = !item.downloaded_at && !onDisk;
         meta.appendChild(check);
+        if (local?.found > 0) {
+          const status = document.createElement("span");
+          status.className = "local-download";
+          status.textContent = onDisk ? "In Downloads" : `Found ${local.found}/${local.total} in Downloads`;
+          meta.appendChild(status);
+        }
 
         const actions = document.createElement("div");
         actions.className = "card-actions";

@@ -96,6 +96,7 @@ class DashboardApiTests(unittest.TestCase):
 
         os.environ["SITE_URL"] = f"file://{index_html}"
         os.environ["DB_PATH"] = str(base / "test.db")
+        os.environ["DOWNLOADS_DIR"] = str(base / "downloads")
         os.environ["START_DATE"] = cls.today_iso
         os.environ["TOP_N"] = "10"
         os.environ["REQUEST_DELAY_SEC"] = "0"
@@ -273,6 +274,53 @@ class DashboardApiTests(unittest.TestCase):
         self.assertEqual(payload["count"], 1)
         _, payload, _ = self.request_json("GET", "/api/items")
         self.assertEqual(payload["items"], [])
+
+    def test_local_downloads_keep_existing_state_and_require_all_parts(self):
+        self.seed_items()
+        with tempfile.TemporaryDirectory() as directory:
+            downloads = Path(directory)
+            nested = downloads / "Saved"
+            nested.mkdir()
+            (nested / "FC2-PPV-5007329_part02 中文片名 (1).MP4").write_bytes(b"video")
+            (downloads / "FC2PPV-5007329-1.mp4.crdownload").write_bytes(b"in progress")
+            (downloads / "FC2PPV-5007329-1.mp4").touch()
+            (downloads / "200gana_3490 中文片名.mkv").write_bytes(b"video")
+            (downloads / "103126-001-carib.mp4").write_bytes(b"video")
+            with self.dashboard.db_connect() as conn:
+                self.dashboard.save_video(conn, "https://example.com/multipart", {
+                    "title": "FC2 PPV 5007329",
+                    "rapidgator_urls": [
+                        f"https://rapidgator.net/file/{part}/fc2ppv-5007329-{part}.mp4.html"
+                        for part in (1, 2)
+                    ],
+                    "post_date": self.today_iso,
+                })
+                self.dashboard.save_video(conn, "https://example.com/title-only", {
+                    "title": "200GANA 3490",
+                    "post_date": self.today_iso,
+                })
+                self.dashboard.save_video(conn, "https://example.com/different-series", {
+                    "title": "1Pondo 103126_001",
+                    "post_date": self.today_iso,
+                })
+
+            def listed_items():
+                _, payload, _ = self.request_json("GET", "/api/items")
+                return {item["title"]: item for item in payload["items"]}
+
+            with patch.object(self.dashboard, "DOWNLOADS_DIR", downloads):
+                items = listed_items()
+                self.assertEqual(items["FC2 PPV 5007329"]["local_download"], {"found": 1, "total": 2})
+                self.assertEqual(items["200GANA 3490"]["local_download"], {"found": 1, "total": 1})
+                self.assertEqual(items["1Pondo 103126_001"]["local_download"], {"found": 0, "total": 1})
+                (downloads / "fc2ppv-5007329-1.mp4").write_bytes(b"video")
+                items = listed_items()
+                self.assertEqual(items["FC2 PPV 5007329"]["local_download"], {"found": 2, "total": 2})
+                self.assertIsNone(items["FC2 PPV 5007329"]["downloaded_at"])
+                (downloads / "fc2ppv-5007329-1.mp4").unlink()
+                self.assertEqual(
+                    listed_items()["FC2 PPV 5007329"]["local_download"], {"found": 1, "total": 2}
+                )
 
     def test_settings_stats_summary(self):
         self.seed_items()
